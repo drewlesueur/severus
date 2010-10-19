@@ -55,8 +55,10 @@ app.get "/test", (req , res) ->
   res.send "toquemen el bombo"
 
 handle_methods = (req, res, args) ->
+  console.log args
   method = req.param("method") 
-  args = decodeURIComponent(args);
+  args = decodeURIComponent(args.q);
+  console.log args
   methods[method] JSON.parse(args), req, res #, db
 
 

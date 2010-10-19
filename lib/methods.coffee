@@ -1,11 +1,9 @@
 insert = (args, req, res) ->
-
-  db.collection args._type, (err, collection) ->
+  db.collection args._type or "things", (err, collection) ->
       if err
         console.log err
         res.send "error with insert"
       else
-        
         args._user = req.user()
         collection.insert args, (err, docs) ->
           if err
@@ -15,7 +13,6 @@ insert = (args, req, res) ->
   
   
 this.methods =
-
   #shorthand for insert
   ins: (args, req, res) ->
     
@@ -25,7 +22,7 @@ this.methods =
     
   insert : insert
   find : (args, req, res) ->
-    db.collection args._type, (err, collection) ->
+    db.collection args._type or "things", (err, collection) ->
       if err
         console.log err
         res.send "error with find"
@@ -40,7 +37,7 @@ this.methods =
         catch e
           res.send e
   update : (args, req, res) ->
-    db.collection args._type, (err, collection) ->
+    db.collection args._type or "things", (err, collection) ->
       if err
         res.send "broke"
       else
@@ -51,7 +48,7 @@ this.methods =
           res.send wha
           
   remove: (args, req, res) ->
-     db.collection args._type, (err, collection) ->
+     db.collection args._type or "things", (err, collection) ->
       if err
         res.send "broke"
       else
@@ -67,7 +64,7 @@ this.methods =
   #use upsert instead of this!  
   addedit: (args, req, res) ->
     console.log "got to add edit"
-    db.collection args._type, (err, collection) ->
+    db.collection args._type or "things", (err, collection) ->
       if err
         res.send "addedit error"
       else
