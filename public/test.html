@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<script type="text/javascript" src="/js/jquery.js"></script> 
+<script type="text/javascript" src="/js/swfobject.js"></script> 
+<script src="http://maps.google.com/maps/api/js?sensor=false"></script>
+<script>
+var map;
+function initialize() {
+	latlng = new google.maps.LatLng(33.4222685, -111.8226402)
+    myOptions = {
+      zoom: 4,
+      center: latlng,
+      mapTypeId: google.maps.MapTypeId.ROADMAP
+    };
+    map = new google.maps.Map(document.getElementById("map"),myOptions)
+    var point = new google.maps.LatLng(33.4222685, -111.8226402);
+    var marker = new google.maps.Marker({
+        position: point,
+        map: map
+    })
+    google.maps.event.addListener(marker, "click", function(){
+        $("body").append('<iframe id="framer" src="http://www.youtube.com/drewlesueur2" width=500 height=500></iframe>')
+        bubble = new google.maps.InfoWindow({
+         // content: '<div style="height:518px;width:520px;margin-top:10px; overflow: hidden"></div><div style="position:absolute;top:10px;left:0"><object type="application/x-shockwave-flash" style="width:300px; height:300px;" data="http://www.youtube.com/v/4HPbrFg6_xc"><param name="movie" value="http://www.youtube.com/v/4HPbrFg6_xc" /></object></div> ' 
+         
+         content: $("#framer")[0]
+        })
+        bubble.open(map, marker);
+        
+   
+    })
+    
+    
+}
+</script>
+</head>
+<body onload="initialize();">
+  <div id="map" style="width: 984px; height: 495px"></div>
+</body>
+</html>
