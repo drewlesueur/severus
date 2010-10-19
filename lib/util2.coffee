@@ -77,5 +77,16 @@ _.mixin
     _.each things, (func, id) ->
       func(make_done(id))
       
-    
-    
+
+this.parse_slon = (str) ->
+  if str.indexOf(":") is -1
+    return str
+  else
+    str = str.split ","
+    ret = {}
+    for pair in str
+      pair = pair.split ":"
+      pair[0] = _.trim pair[0]
+      pair[1] = _.trim pair[1]
+      ret[pair[0]] = pair[1]
+    return ret

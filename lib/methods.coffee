@@ -1,8 +1,9 @@
 insert = (args, req, res) ->
+
   db.collection args._type, (err, collection) ->
       if err
         console.log err
-        res.send "bro"
+        res.send "error with insert"
       else
         
         args._user = req.user()
@@ -12,20 +13,28 @@ insert = (args, req, res) ->
             res.send "super error"
           res.send "1"
   
+  
 this.methods =
+
+  #shorthand for insert
+  ins: (args, req, res) ->
+    
+    
   test2: (args, req, res) ->
     res.send "a ute latanbora"
+    
   insert : insert
-  request : (args, req, res) ->
-    db.collection args.type, (err, collection) ->
+  find : (args, req, res) ->
+    db.collection args._type, (err, collection) ->
       if err
-        res.send "brokep"
+        console.log err
+        res.send "error with find"
       else
         try
-          if "_id" of args.wh
-            args.wh._id = ObjectID.createFromHexString(args.wh._id)
-          args.wh["$where"] = "this._user == '#{req.user()}' || this._public == true"
-          collection.find args.wh, (err, cursor) ->
+          if "_id" of args
+            args._id = ObjectID.createFromHexString(args.wh._id)
+          args["$where"] = "(this._user == '#{req.user()}' || this._public == true)"
+          collection.find args, (err, cursor) ->
             cursor.toArray (err, docs) ->
               res.send docs
         catch e
@@ -46,10 +55,10 @@ this.methods =
       if err
         res.send "broke"
       else
-        args.wh._user = req.user()
-        if "_id" of args.wh
-          args.wh._id = ObjectID.createFromHexString(args.wh._id)
-        collection.remove args.wh, (err, collection) ->
+        args._user = req.user()
+        if "_id" of args
+          args._id = ObjectID.createFromHexString(args._id)
+        collection.remove args, (err, collection) ->
           res.send "done"
   
   test: () ->

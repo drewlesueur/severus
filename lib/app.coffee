@@ -7,13 +7,13 @@ mongo = require("mongodb")
 host = 'localhost'
 port = mongo.Connection.DEFAULT_PORT
 
-  
 Auth = require "auth"
 fs = require "fs"
 require ("./underscore")
 require("./util")
 require("./util2.coffee")
 require("./methods")
+require("./s_methods")
 
 form = require "connect-form"
 express = require("express")
@@ -53,19 +53,35 @@ this.db = new mongo.Db 'mydb', new mongo.Server(host, port, {}), {}
 
 app.get "/test", (req , res) ->
   res.send "toquemen el bombo"
+
+handle_methods = (req, res, args) ->
+  method = req.param("method") 
+  args = decodeURIComponent(args);
+  methods[method] JSON.parse(args), req, res #, db
+
+
+handle_s_methods = (req, res, args) ->
+  method = req.param("method")
+  new_args = {}
+  for key, val of args
+    new_args[key] = parse_slon val 
+  s_methods[method] new_args, req, res 
   
 this.db.open () -> 
   app.post "/:method", (req, res) ->
     if req.param("method") of methods
-      args = req.body.args
-      args = decodeURIComponent(args);
-      methods[req.param("method")] JSON.parse(args), req, res #, db
+      handle_methods req, res, req.body
 
   app.get "/:method", (req, res) ->
     if req.param("method") of methods
-      args = req.query
-      methods[req.param("method")] args, req, res #, db
-      
+      handle_methods req, res, req.query
+  
+  app.get "/s.:method", (req, res) ->
+    if req.param("method") of s_methods
+      handle_s_methods req, res, req.query
+    else
+      console.log "not there"
+  
 # take and image upload it and return the address for the thumbnail
 app.post "/upload-image", (req, res) ->
   req.form.complete (err, fields, files) ->
@@ -92,11 +108,11 @@ app.get "/", (req, res) ->
   if req.isAuthenticated()
     username = req.getAuthDetails().user.username
   else
-    username = ""
-  res.send username
+    username = "none"
+  res.send req.user()
   
 
-app.get '/auth/:auth_strategy/callback', (req, res, params) ->
+app.get '/auth/:auth_strategy', (req, res, params) ->
   
   #if false and _(req.headers.host).startsWith "localhost"
   #  authentication_strategy = "anon"
