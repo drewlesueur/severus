@@ -12,8 +12,7 @@ fs = require "fs"
 require ("./underscore")
 require("./util")
 require("./util2.coffee")
-require("./methods")
-require("./s_methods")
+
 
 form = require "connect-form"
 express = require("express")
@@ -47,18 +46,18 @@ app.configure () ->
   app.use form(keepExtensions: true)
 
 
-this.ObjectID = mongo.ObjectID
+this.ObjectID = mongo.BSONPure.ObjectID
 this.db = new mongo.Db 'mydb', new mongo.Server(host, port, {}), {}
 
+require("./methods")
+require("./s_methods")
 
 app.get "/test", (req , res) ->
   res.send "toquemen el bombo"
 
 handle_methods = (req, res, args) ->
-  console.log args
   method = req.param("method") 
   args = decodeURIComponent(args.q);
-  console.log args
   methods[method] JSON.parse(args), req, res #, db
 
 

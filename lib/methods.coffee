@@ -6,13 +6,29 @@ insert = (args, req, res) ->
         res.send "error with insert"
       else
         args._user = req.user()
+        delete args._id
         collection.insert args, (err, docs) ->
           if err
             console.log err
             res.send "super error"
           res.send doc._id for doc in docs
   
-  
+update = (args, req, res) ->
+  db.collection args._type or "things", (err, collection) ->
+    if err
+      console.log err
+      res.send "broke"
+    else
+      args.wh._user = req.user()
+      if "_id" of args.va
+        delete args.va._id
+      if "_id" of args.wh
+        args.wh._id = ObjectID.createFromHexString(args.wh._id)
+
+      collection.update args.wh, args.va, {upsert: args.upsert or false, multi: args.multi or false}, (err, wha) ->
+         #res.send doc._id for doc in wha
+         res.send args.wh._id
+         
 this.methods =
   #shorthand for insert
   ins: (args, req, res) ->
@@ -37,22 +53,7 @@ this.methods =
               res.send docs
         catch e
           res.send e
-  update : (args, req, res) ->
-    db.collection args._type or "things", (err, collection) ->
-      if err
-        res.send "broke"
-      else
-        args.wh._user = req.user()
-        
-        if "_id" of args.va
-          args.va._id = ObjectID.createFromHexString(args.va._id)
-        if "_id" of args.wh
-          args.wh._id = ObjectID.createFromHexString(args.wh._id)
-        console.log args.wh
-        console.log args.va
-        console.log args.upsert
-        collection.update args.wh, args.va, {upsert: args.upsert or false, multi: args.multi or false}, (err, wha) ->
-          res.send wha
+  update : update
           
   remove: (args, req, res) ->
      db.collection args._type or "things", (err, collection) ->
@@ -84,7 +85,7 @@ this.methods =
             delete orig_args._id
             args.va = orig_args
             args._type = orig_args._type
-            this.update args, req, res
+            update args, req, res
           else   #create    
             insert args, req, res
         catch e
