@@ -1,3 +1,4 @@
+#todo make insert handle more than one object at a time
 insert = (args, req, res) ->
   db.collection args._type or "things", (err, collection) ->
       if err
@@ -9,7 +10,7 @@ insert = (args, req, res) ->
           if err
             console.log err
             res.send "super error"
-          res.send "1"
+          res.send doc._id for doc in docs
   
   
 this.methods =
@@ -42,9 +43,15 @@ this.methods =
         res.send "broke"
       else
         args.wh._user = req.user()
+        
+        if "_id" of args.va
+          args.va._id = ObjectID.createFromHexString(args.va._id)
         if "_id" of args.wh
           args.wh._id = ObjectID.createFromHexString(args.wh._id)
-        collection.update args.wh, args.va, {upsert: args.upsert, multi: args.multi}, (err, wha) ->
+        console.log args.wh
+        console.log args.va
+        console.log args.upsert
+        collection.update args.wh, args.va, {upsert: args.upsert or false, multi: args.multi or false}, (err, wha) ->
           res.send wha
           
   remove: (args, req, res) ->
@@ -61,14 +68,13 @@ this.methods =
   test: () ->
     console.log "test"
   
-  #use upsert instead of this!  
+  #use upsert instead of this! maybe not  
   addedit: (args, req, res) ->
     console.log "got to add edit"
     db.collection args._type or "things", (err, collection) ->
       if err
         res.send "addedit error"
       else
-        console.log "bloat"
         try
           if "_id" of args #update
             orig_args = args
@@ -80,7 +86,7 @@ this.methods =
             args._type = orig_args._type
             this.update args, req, res
           else   #create    
-            create args, req, res
+            insert args, req, res
         catch e
           res.send e
             

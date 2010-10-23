@@ -4,10 +4,6 @@ var InsertCommand = require('./commands/insert_command').InsertCommand,
   UpdateCommand = require('./commands/update_command').UpdateCommand,
   DbCommand = require('./commands/db_command').DbCommand,
   BinaryParser = require('./bson/binary_parser').BinaryParser,
-  OrderedHash = require('./bson/collections').OrderedHash,
-  BSON = require('./bson/bson'),
-  ObjectID = BSON.ObjectID,
-  Code = BSON.Code,
   Cursor = require('./cursor').Cursor;
 
 
@@ -18,7 +14,7 @@ var formatSortValue = function(sortDirection) {
   var value = ("" + sortDirection).toLowerCase();
   if(value == 'ascending' || value == 'asc' || value == 1) return 1;
   if(value == 'descending' || value == 'desc' || value == -1 ) return -1;
-  throw Error("Illegal sort clause, must be of the form " +
+  throw new Error("Illegal sort clause, must be of the form " +
     "[['field1', '(ascending|descending)'], ['field2', '(ascending|descending)']]");
 };
 
@@ -34,12 +30,10 @@ var formattedOrderClause = function(sortValue) {
         orderBy[sortElement[0]] = formatSortValue(sortElement[1]);
       }
     });
-  } else if(sortValue instanceof OrderedHash) {
-    throw new Error("Invalid sort argument was supplied");
   } else if(sortValue.constructor == String) {
-    orderBy[sortValue] = 1
+    orderBy[sortValue] = 1;
   } else {
-    throw Error("Illegal sort clause, must be of the form " +
+    throw new Error("Illegal sort clause, must be of the form " +
       "[['field1', '(ascending|descending)'], ['field2', '(ascending|descending)']]");
   }
   return orderBy;
@@ -49,10 +43,10 @@ var formattedOrderClause = function(sortValue) {
   Handles all the operations on objects in collections
 **/
 var Collection = exports.Collection = function(db, collectionName, pkFactory) {
-    this.db = db;
+  this.db = db;
   this.collectionName = collectionName;
   this.internalHint;
-  this.pkFactory = pkFactory == null ? ObjectID : pkFactory;
+  this.pkFactory = pkFactory == null ? db.bson_serializer.ObjectID : pkFactory;
   // Add getter and setters
   this.__defineGetter__("hint", function() { return this.internalHint; });
   this.__defineSetter__("hint", function(value) { this.internalHint = this.normalizeHintField(value); });
@@ -60,8 +54,12 @@ var Collection = exports.Collection = function(db, collectionName, pkFactory) {
   this.checkCollectionName(collectionName);
 };
 
-Collection.prototype.insert = function(docs, callback) {
-  this.insertAll(Array.isArray(docs) ? docs : [docs], callback);
+Collection.prototype.insert = function(docs, options, callback) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  callback = args.pop();
+  options = args.length ? args.shift() : {};
+
+  this.insertAll(Array.isArray(docs) ? docs : [docs], options, callback);
   return this;
 };
 
@@ -69,7 +67,7 @@ Collection.prototype.checkCollectionName = function(collectionName) {
   if (typeof collectionName != 'string')
     throw Error("collection name must be a String");
 
-  if (!collectionName || collectionName.indexOf('..') != -1)
+  if (!collectionName || collectionName.indexOf('..') != -1)
     throw Error("collection names cannot be empty");
 
   if (collectionName.indexOf('$') != -1 && collectionName.match(/((^\$cmd)|(oplog\.\$main))/) == null)
@@ -79,16 +77,29 @@ Collection.prototype.checkCollectionName = function(collectionName) {
     throw Error("collection names must not start or end with '.'");
 };
 
-Collection.prototype.remove = function(selector, callback) {
-  if(callback == null) { callback = selector; selector = null; }
+Collection.prototype.remove = function(selector, options, callback) {
+  var args = Array.prototype.slice.call(arguments, 0);
+  callback = args.pop();
+  removeSelector = args.length ? args.shift() : {};
+  options = args.length ? args.shift() : {};
 
   // Generate selector for remove all if not available
-  var removeSelector = selector == null ? {} : selector;
-  var deleteCommand = new DeleteCommand(this.db.databaseName + "." + this.collectionName, removeSelector);
+  var deleteCommand = new DeleteCommand(this.db, this.db.databaseName + "." + this.collectionName, removeSelector);
   // Execute the command
   this.db.executeCommand(deleteCommand, callback);
-  // Callback with no commands
-  if(callback != null) callback(null, this);
+  // If safe mode check last error  
+  if(options.safe) {
+    this.db.error(function(err, doc) {
+      if(doc[0].ok == false) {
+        if(callback != null) callback(new Error(doc[0].err), null);
+      } else {
+        if(callback != null) callback(null, null);
+      }
+    });              
+  } else {
+    // Callback with no commands
+    if(callback != null) callback(null, this);
+  }  
 };
 
 Collection.prototype.rename = function(collectionName, callback) {
@@ -109,39 +120,48 @@ Collection.prototype.rename = function(collectionName, callback) {
   }
 };
 
-Collection.prototype.insertAll = function(docs, callback) {
+Collection.prototype.insertAll = function(docs, options, callback) {
   var error= null;
+  var args = Array.prototype.slice.call(arguments, 1);
+  callback = args.pop();
+  options = args.length ? args.shift() : {};
   
   try {
     // List of all id's inserted
     var objects = [];
     // Create an insert command
-    var insertCommand = new InsertCommand(this.db.databaseName + "." + this.collectionName);
+    var insertCommand = new InsertCommand(this.db, this.db.databaseName + "." + this.collectionName);
     // Add id to each document if it's not already defined
     for(var index = 0; index < docs.length; index++) {
       var doc = docs[index];
-
-      if(!(doc instanceof OrderedHash)) {
-        doc._id = doc._id == null ? this.pkFactory.createPk() : doc._id;
-      } else {
-        // Add the id to the document
-        var id = doc.get("_id") == null ? this.pkFactory.createPk() : doc.get("_id");
-        doc.add('_id', id);
-      }
-
-      // Insert the document
+      // Add the id to the document
+      var id = doc["_id"] == null ? this.pkFactory.createPk() : doc["_id"];
+      doc['_id'] = id;
+      // Insert the document      
       insertCommand.add(doc);
       objects.push(doc);
     }
     // Execute the command
     this.db.executeCommand(insertCommand);
+    // If safe is defined check for error message
+    if(options.safe) {
+      this.db.error(function(err, doc) {
+        if(doc[0].ok == false) {
+          if(callback != null) callback(new Error(doc[0].err), null);
+        } else {
+          if(callback != null) callback(null, objects);
+        }
+      });              
+    } else {
+      if(callback != null) callback(null, objects);
+    }
   } catch(err) {
     error= err;
-  }
-  // Return the id's inserted calling the callback (mongo does not callback on inserts)
-  if(callback )  {
-    if( error ) callback(error, null);
-    else callback(null, objects);
+    // Return error message if needed
+    if(callback != null)  {
+      if( error ) callback(error, null);
+      else callback(null, objects);
+    }      
   }
 };
 
@@ -149,13 +169,12 @@ Collection.prototype.save = function(doc, options, callback) {
   var args = Array.prototype.slice.call(arguments, 1);
   callback = args.pop();
   options = args.length ? args.shift() : null;
-
-  var id = (doc instanceof OrderedHash) ? doc.get('_id') : doc['_id'];
+  var id = doc['_id'];
 
   if(id != null) {
     this.update({'_id':id}, doc, {upsert: true, safe: options != null ? options.safe : false}, callback);
   } else {
-    this.insert(doc, function(err, docs) { Array.isArray(docs) ? callback(err, docs[0]) : callback(err, docs); });
+    this.insert(doc, {safe: options != null ? options.safe : false}, function(err, docs) { Array.isArray(docs) ? callback(err, docs[0]) : callback(err, docs); });
   }
 };
 
@@ -169,14 +188,18 @@ Collection.prototype.save = function(doc, options, callback) {
 
   Options:
     upsert - true/false (perform upsert operation)
+    multi - true/false (update all documents matching spec)
     safe - true/false (perform check if the operation failed, required extra call to db)
 **/
 Collection.prototype.update = function(spec, document, options, callback) {
-  if(callback == null) { callback = options; options = null; }
+  var args = Array.prototype.slice.call(arguments, 2);
+  callback = args.pop();
+  options = args.length ? args.shift() : null;
+
   try {
     var safe = options == null || options.safe == null || options.safe == false ? false : true;
     // Create update command
-    var updateCommand = new UpdateCommand(this.db.databaseName + "." + this.collectionName, spec, document, options);
+    var updateCommand = new UpdateCommand(this.db, this.db.databaseName + "." + this.collectionName, spec, document, options);
     // Execute command
     this.db.executeCommand(updateCommand);
     // If safe, we need to check for successful execution
@@ -205,10 +228,8 @@ Collection.prototype.distinct = function(key, query, callback) {
   callback = args.pop();
   query = args.length ? args.shift() : {};
 
-  var mapCommandHash = new OrderedHash();
-  mapCommandHash.add('distinct', this.collectionName).add('key', key).add('query', query);
-
-  this.db.executeCommand(DbCommand.createDbCommand(this.db.databaseName, mapCommandHash), function(err, result) {
+  var mapCommandHash = {distinct:this.collectionName, key:key, query:query};
+  this.db.executeCommand(DbCommand.createDbCommand(this.db, mapCommandHash), function(err, result) {
     if(err == null && result.documents[0].ok == 1) {
       callback(null, result.documents[0].values);
     } else {
@@ -219,9 +240,9 @@ Collection.prototype.distinct = function(key, query, callback) {
 
 Collection.prototype.count = function(query, callback) {
   if(typeof query === "function") { callback = query; query = null; }
-  var query_object = query == null ? new OrderedHash() : query;
+  var query_object = query == null ? {} : query;
   var final_query = {count: this.collectionName, query: query_object, fields: null};
-  var queryCommand = new QueryCommand(this.db.databaseName + ".$cmd", QueryCommand.OPTS_NO_CURSOR_TIMEOUT, 0, -1, final_query, null);
+  var queryCommand = new QueryCommand(this.db, this.db.databaseName + ".$cmd", QueryCommand.OPTS_NO_CURSOR_TIMEOUT, 0, -1, final_query, null);
   // Execute the command
   this.db.executeCommand(queryCommand, function(err, result) {
     if(err == null && result.documents[0].ok == 1) {
@@ -241,16 +262,18 @@ Collection.prototype.drop = function(callback) {
   query:        a filter for the query
   sort:         if multiple docs match, choose the first one in the specified sort order as the object to manipulate
   update:       an object describing the modifications to the documents selected by the query
-  remove_doc:   set to a true to remove the object before returning 
-  new_doc:      set to true if you want to return the modified object rather than the original. Ignored for remove.
+  options:
+    remove:   set to a true to remove the object before returning
+    new:      set to true if you want to return the modified object rather than the original. Ignored for remove.
+    upsert:       true/false (perform upsert operation)
 **/
-Collection.prototype.findAndModify = function(query, sort, update, new_doc, remove_doc, callback) {
+Collection.prototype.findAndModify = function(query, sort, update, options, callback) {
   var args = Array.prototype.slice.call(arguments, 1);
   callback = args.pop();
-  sort = args.length ? args.shift() : [];  
-  update = args.length ? args.shift() : null;  
-  new_doc = args.length ? args.shift() : false;  
-  remove_doc = args.length ? args.shift() : null;
+  sort = args.length ? args.shift() : [];
+  update = args.length ? args.shift() : null;
+  options = args.length ? args.shift() : {};
+
   // Format the sort object
   var sort_object = formattedOrderClause(sort);
   // Unpack the options
@@ -261,15 +284,19 @@ Collection.prototype.findAndModify = function(query, sort, update, new_doc, remo
     'query':query,
     'sort':sort_object
   }
-  // Set the new option
-  queryObject['new'] = new_doc ? 1 : 0;
+
+  queryObject['new'] = options['new'] ? 1 : 0;
+  queryObject['remove'] = options.remove ? 1 : 0;
+  queryObject['upsert'] = options.upsert ? 1 : 0;
+
   // Set up the update if it exists
   if(update) queryObject['update'] = update;
+
   // Set up the sort
   if(!Array.isArray(sort) && sort.length == 0) queryObject['sort'] = sort_object;
-  // If we have defined new then pass that in
-  if(remove_doc) queryObject['remove'] = remove_doc ? 1 : 0;
-  if(remove_doc) delete queryObject['update'];
+
+  if(options.remove) delete queryObject['update'];
+
   // Execute command
   this.db.executeDbCommand(queryObject, function(err, doc) {
     err ? callback(err, doc) : callback(err, doc.documents[0].value);
@@ -290,12 +317,12 @@ various argument possibilities
 Collection.prototype.find = function() {
   var options,
       len = arguments.length,
-      selector = (len > 1) ? arguments[0] : new OrderedHash(),
+      selector = (len > 1) ? arguments[0] : {},
       fields = (len > 2) ? arguments[1] : undefined,
       callback = arguments[len-1];
   
-  if(len == 2 && typeof arguments[0] == 'function'){
-    selector = new OrderedHash(); options = arguments[1]; callback = arguments[0];
+  if(len == 2 && typeof arguments[0] == 'function') {
+    selector = {}; options = arguments[1]; callback = arguments[0];
   }
   
   if(len == 3){ // backwards compat for options object
@@ -329,14 +356,15 @@ Collection.prototype.find = function() {
 Collection.prototype.normalizeHintField = function(hint) {
   var finalHint = null;
   // Normalize the hint parameter
-  if(hint != null && hint.constructor == String) {
-    finalHint = new OrderedHash().add(hint, 1);
+  if(hint != null && hint.constructor == String) {    
+    finalHint = {};
+    finalHint[hint] = 1;
   } else if(hint != null && hint.constructor == Object) {
-    finalHint = new OrderedHash();
-    for(var name in hint) { finalHint.add(name, hint[name]); }
+    finalHint = {};
+    for(var name in hint) { finalHint[name] = hint[name]; }
   } else if(hint != null && hint.constructor == Array) {
-    finalHint = new OrderedHash();
-    hint.forEach(function(param) { finalHint.add(param, 1); });
+    finalHint = {};
+    hint.forEach(function(param) { finalHint[param] = 1; });
   }
   return finalHint;
 };
@@ -363,11 +391,11 @@ Collection.prototype.findOne = function(queryObject, options, callback) {
   // Build final query
   var finalQueryObject = queryObject == null ? {} : queryObject;
   // Validate the type of query
-  finalQueryObject = finalQueryObject instanceof ObjectID ? {'_id':finalQueryObject} : finalQueryObject;
+  finalQueryObject = (finalQueryObject instanceof this.db.bson_serializer.ObjectID || Object.prototype.toString.call(finalQueryObject) === '[object ObjectID]') ? {'_id':finalQueryObject} : finalQueryObject;
   // Build special selector
   var specialSelector = {'query':finalQueryObject};
   // Execute the command
-  var queryCommand = new QueryCommand(this.db.databaseName + "." + this.collectionName, queryOptions, 0, 1, specialSelector, fields);
+  var queryCommand = new QueryCommand(this.db, this.db.databaseName + "." + this.collectionName, queryOptions, 0, 1, specialSelector, fields);
   this.db.executeCommand(queryCommand, function(err, result) {
     if(!err && result.documents[0] && result.documents[0]['$err']) return callback(result.documents[0]['$err'], null);    
     callback(err, result.documents[0]);
@@ -407,20 +435,16 @@ Collection.prototype.mapReduce = function(map, reduce, options, callback) {
 
   var self = this;
 
-  if(typeof map === "function") { map = map.toString(); }
-  if(typeof reduce == "function") { reduce = reduce.toString(); }
-
+  if(Object.prototype.toString.call(map) === '[object Function]') map = map.toString();
+  if(Object.prototype.toString.call(reduce) === '[object Function]') reduce = reduce.toString();
   // Build command object for execution
-  var mapCommandHash = new OrderedHash();
-  mapCommandHash.add('mapreduce', this.collectionName)
-    .add('map', map)
-    .add('reduce', reduce);
+  var mapCommandHash = {mapreduce:this.collectionName, map:map, reduce:reduce};
   // Add any other options passed in
   for(var name in options) {
-    mapCommandHash.add(name, options[name]);
+    mapCommandHash[name] = options[name];
   }
   // Execute command against server
-  this.db.executeCommand(DbCommand.createDbCommand(this.db.databaseName, mapCommandHash), function(err, result) {
+  this.db.executeCommand(DbCommand.createDbCommand(this.db, mapCommandHash), function(err, result) {
     if(err == null && result.documents[0].ok == 1) {
       // Create a collection object that wraps the result collection
       self.db.collection(result.documents[0].result, function(err, collection) {
@@ -439,12 +463,12 @@ Collection.prototype.group = function(keys, condition, initial, reduce, command,
   command = args.length ? args.shift() : null;
 
   if(command) {
-    var hash = new OrderedHash();
+    var hash = {};
     keys.forEach(function(key) {
-      hash.add(key, 1);
+      hash[key] = 1;
     });
 
-    var reduceFunction = reduce != null && reduce instanceof Code ? reduce : new Code(reduce);
+    var reduceFunction = reduce != null && reduce instanceof this.db.bson_serializer.Code ? reduce : new this.db.bson_serializer.Code(reduce);
     var selector = {'group': {
                       'ns':this.collectionName,
                       '$reduce': reduce,
@@ -452,7 +476,7 @@ Collection.prototype.group = function(keys, condition, initial, reduce, command,
                       'cond':condition,
                       'initial': initial}};
 
-    this.db.executeCommand(DbCommand.createDbCommand(this.db.databaseName, selector), function(err, result) {
+    this.db.executeCommand(DbCommand.createDbCommand(this.db, selector), function(err, result) {
       var document = result.documents[0];
       if(err == null && document.retval != null) {
         callback(null, document.retval);
@@ -462,13 +486,12 @@ Collection.prototype.group = function(keys, condition, initial, reduce, command,
     });
   } else {
     // Create execution scope
-    var scope = reduce != null && reduce instanceof Code ? reduce.scope : new OrderedHash();
+    var scope = reduce != null && reduce instanceof this.db.bson_serializer.Code ? reduce.scope : {};
     // Create scope for execution
-    scope.add('ns', this.collectionName)
-      .add('keys', keys)
-      .add('condition', condition)
-      .add('initial', initial);
-
+    scope['ns'] = this.collectionName;
+    scope['keys'] = keys;
+    scope['condition'] = condition;
+    scope['initial'] = initial;
     // Define group function
     var groupFunction = function() {
         var c = db[ns].find(condition);
@@ -497,7 +520,7 @@ Collection.prototype.group = function(keys, condition, initial, reduce, command,
     // Turn function into text and replace the "result" function of the grouping function
     var groupFunctionString = groupFunction.toString().replace(/ reduce;/, reduce.toString() + ';');
     // Execute group
-    this.db.eval(new Code(groupFunctionString, scope), function(err, results) {
+    this.db.eval(new this.db.bson_serializer.Code(groupFunctionString, scope), function(err, results) {
       if(err != null) {
         callback(err, null);
       } else {
