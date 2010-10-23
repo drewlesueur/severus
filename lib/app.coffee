@@ -105,7 +105,7 @@ app.get "/json", (req, res) ->
   res.send
     test: "json"
     really: "cool"
-    
+
 app.get "/", (req, res) ->
   if req.isAuthenticated()
     username = req.getAuthDetails().user.username
@@ -147,4 +147,4 @@ app.get "/logout", (req, res, params) ->
   res.redirect "/"
 
 exports.run = () ->
-  app.listen parseInt(process.env.PORT or 87), null
+  app.listen parseInt(process.env.PORT or 86), null

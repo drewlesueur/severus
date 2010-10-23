@@ -9,10 +9,17 @@ Severus.successes = {}
 Severus.errors = {}
 
 Severus.initialize = (url, callback) ->
+  
   this.url = url or "/iframe.html"
   iframe = $ """<iframe src="#{this.url}" ></iframe>"""
   iframe.bind "load", () ->
-    callback()
+    Severus.ajax
+      url: "/"
+      type: "GET"
+      success: (data) ->
+        console.log data
+        window.username = data
+        callback() # or do callback(data)
   $(document.body).append iframe
   this.iframe = iframe[0]
   self = this
@@ -30,7 +37,10 @@ Severus.initialize = (url, callback) ->
     if self.errors? and id of self.errors
       delete self.errors[id]
   ), false
+  
 
+      
+      
 Severus.ajax = (args) ->
   id = uniqueid++
   wrapped = id : id, args: args
