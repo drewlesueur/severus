@@ -112,6 +112,7 @@ Severus.acceptMessages = (whitelist) ->
       else if message.type is "login" #authenticate with facebook.
         url = "https://graph.facebook.com/oauth/authorize"
         url += "?client_id=#{Severus.facebook.client_id}"
+        url += "&type=user_agent"
         redirect_uri =  encodeURIComponent(sev.url + "?redirect_url=" + encodeURIComponent(args.loc)) #double time
         url += "&redirect_uri=#{redirect_uri}"
         # window.open url, null, "width=400,height=200"

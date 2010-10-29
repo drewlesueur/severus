@@ -141,6 +141,7 @@
         } else if (message.type === "login") {
           url = "https://graph.facebook.com/oauth/authorize";
           url += ("?client_id=" + (Severus.facebook.client_id));
+          url += "&type=user_agent";
           redirect_uri = encodeURIComponent(sev.url + "?redirect_url=" + encodeURIComponent(args.loc));
           url += ("&redirect_uri=" + (redirect_uri));
           post = {
