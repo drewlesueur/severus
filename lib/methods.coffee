@@ -26,8 +26,8 @@ update = (args, req, res) ->
         args.wh._id = ObjectID.createFromHexString(args.wh._id)
 
       collection.update args.wh, args.va, {upsert: args.upsert or false, multi: args.multi or false}, (err, wha) ->
-         #res.send doc._id for doc in wha
-         res.send args.wh._id
+        #res.send doc._id for doc in wha
+        res.send args.wh._id
          
 this.methods =
   #shorthand for insert
