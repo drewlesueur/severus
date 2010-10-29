@@ -31,6 +31,8 @@ Severus.initialize = (url, callback) ->
       self.errors[id] data
     else if type is "callback"
       self.callbacks[id] data
+    else if type is "redirect"
+      location.href = data.url
     if self.successes? and id of self.successes
       delete self.successes[id]
     if self.errors? and id of self.errors
@@ -44,6 +46,14 @@ Severus.facebook =
   client_id: "162705547084211"
   
 # for now, just using facebook authentication    
+
+Severus.server = (method, args, func) ->
+  Severus.ajax
+    type: "POST",
+    url : "/#{method}"
+    data: {"q": JSON.stringify(args)}
+    success: (data) ->
+      func and func data
 
 Severus.ajax = (args) ->
   id = uniqueid++
@@ -105,7 +115,13 @@ Severus.acceptMessages = (whitelist) ->
         redirect_uri =  encodeURIComponent(sev.url + "?redirect_url=" + encodeURIComponent(args.loc)) #double time
         url += "&redirect_uri=#{redirect_uri}"
         # window.open url, null, "width=400,height=200"
-        window.open url
+        # window.open url
+        # location.href = url
+        post = 
+          type: "redirect"
+          data:
+            url: url
+        parent.postMessage JSON.stringify(post), "*"
       else if message.type is "set"
         _.extend sev, message.args.sets
         posted = 

@@ -35,6 +35,8 @@
         self.errors[id](data);
       } else if (type === "callback") {
         self.callbacks[id](data);
+      } else if (type === "redirect") {
+        location.href = data.url;
       }
       if ((typeof (_c = self.successes) !== "undefined" && _c !== null) && id in self.successes) {
         delete self.successes[id];
@@ -47,6 +49,18 @@
   };
   Severus.facebook = {
     client_id: "162705547084211"
+  };
+  Severus.server = function(method, args, func) {
+    return Severus.ajax({
+      type: "POST",
+      url: ("/" + (method)),
+      data: {
+        "q": JSON.stringify(args)
+      },
+      success: function(data) {
+        return func && func(data);
+      }
+    });
   };
   Severus.ajax = function(args) {
     var _a, _b, id, wrapped;
@@ -99,7 +113,7 @@
     whitelist = whitelist || [];
     sev = this;
     return window.addEventListener("message", function(e) {
-      var _a, _b, args, id, message, posted, redirect_uri, url;
+      var _a, _b, args, id, message, post, posted, redirect_uri, url;
       if (whitelist.length === 0 || _.indexOf(whitelist, e.origin) !== -1) {
         message = JSON.parse(e.data);
         args = message.args;
@@ -129,7 +143,13 @@
           url += ("?client_id=" + (Severus.facebook.client_id));
           redirect_uri = encodeURIComponent(sev.url + "?redirect_url=" + encodeURIComponent(args.loc));
           url += ("&redirect_uri=" + (redirect_uri));
-          return window.open(url);
+          post = {
+            type: "redirect",
+            data: {
+              url: url
+            }
+          };
+          return parent.postMessage(JSON.stringify(post), "*");
         } else if (message.type === "set") {
           _.extend(sev, message.args.sets);
           posted = {
