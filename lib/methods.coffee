@@ -28,8 +28,60 @@ update = (args, req, res) ->
       collection.update args.wh, args.va, {upsert: args.upsert or false, multi: args.multi or false}, (err, wha) ->
         #res.send doc._id for doc in wha
         res.send args.wh._id
-         
+find = (args, req, res) ->
+  db.collection args._type or "things", (err, collection) ->
+    if err
+      console.log err
+      res.send "error with find"
+    else
+      try
+        if "_id" of args
+          args._id = ObjectID.createFromHexString(args.wh._id)
+        args["$where"] = "(this._user == '#{req.user()}' || this._public == true)"
+        collection.find args, (err, cursor) ->
+          cursor.toArray (err, docs) ->
+            res.send docs
+      catch e
+        res.send e
+log_in_the_user = (req, username) ->
+  req.session.officelist.userdomain = "severus"
+  req.session.officelist.userid = username #can change to a username later
+  return
+
+login = (args, req, res) ->
+  db.collection "users", (err, collection) ->
+    if err
+      res.send "error with finding users"
+    else
+      console.log "trying to log in!!"
+      collection.find {username: args.username}, (err, cursor) ->
+        cursor.toArray (err, docs) ->
+          record = docs[0]
+          if not record
+            # if not record, then create it. its *that* easy.
+            
+            collection.insert args, (err, docs) ->
+              if err
+                res.send
+                  result: "there was some kind of error trying to add"
+                
+                return
+              log_in_the_user req, args.username
+              res.send
+                result: true
+              return
+          else
+            if "password" of record and record.password is args.password
+              log_in_the_user req, args.username
+              res.send
+                result: true
+              return
+            else
+              res.send
+                result: false
+
 this.methods =
+  login: login
   #shorthand for insert
   ins: (args, req, res) ->
     
@@ -38,21 +90,7 @@ this.methods =
     res.send "a ute latanbora"
     
   insert : insert
-  find : (args, req, res) ->
-    db.collection args._type or "things", (err, collection) ->
-      if err
-        console.log err
-        res.send "error with find"
-      else
-        try
-          if "_id" of args
-            args._id = ObjectID.createFromHexString(args.wh._id)
-          args["$where"] = "(this._user == '#{req.user()}' || this._public == true)"
-          collection.find args, (err, cursor) ->
-            cursor.toArray (err, docs) ->
-              res.send docs
-        catch e
-          res.send e
+  find : find
   update : update
           
   remove: (args, req, res) ->

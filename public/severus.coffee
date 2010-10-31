@@ -3,7 +3,7 @@ this.Severus = Severus
 _ = this._
 $ = this.$
 
-uniqueid = 0;
+uniqueid = 0
 
 Severus.successes = {}
 Severus.errors = {}
@@ -66,9 +66,14 @@ Severus.ajax = (args) ->
     args.error = id
   this.iframe.contentWindow.postMessage JSON.stringify(wrapped), "*" # change that star later
 
-Severus.login = (loc, callback) ->
+
+Severus.login_facebook = (loc, callback) ->
   loc = loc || location.href
-  Severus.post "login", {loc: "1", callback: callback}
+  Severus.post "login_facebook", {loc: "1", callback: callback}
+
+Severus.login = (args, callback) ->
+  loc = loc || location.href
+  Severus.post "login", {args: args, callback: callback}
 
 Severus.set = (sets, callback) ->
   args = {}
@@ -109,7 +114,7 @@ Severus.acceptMessages = (whitelist) ->
             posted.data = data
             parent.postMessage JSON.stringify(poted), "*"
         $.ajax args
-      else if message.type is "login" #authenticate with facebook.
+      else if message.type is "login_facebook" #authenticate with facebook.
         url = "https://graph.facebook.com/oauth/authorize"
         url += "?client_id=#{Severus.facebook.client_id}"
         url += "&type=user_agent"
@@ -123,6 +128,25 @@ Severus.acceptMessages = (whitelist) ->
           data:
             url: url
         parent.postMessage JSON.stringify(post), "*"
+      else if  message.type is "login" #handling login
+        args = message.args
+        args = args.args
+        console.log "trying to log in with", args
+        $.ajax
+          type: "POST"
+          url: "/login"
+          data: {q: JSON.stringify(args)} 
+          success: (data) ->
+            if data.result is true
+              sev.username = args.username
+              sev.password = args.password
+              sev.session_timeout = 0
+              sev.session = _.md5(sev.username + sev.password + sev.session_timeout)`
+            post =
+              type: "callback"
+              data: data
+              id: id
+            parent.postMessage JSON.stringify(post), "*"
       else if message.type is "set"
         _.extend sev, message.args.sets
         posted = 

@@ -80,10 +80,18 @@
     }
     return this.iframe.contentWindow.postMessage(JSON.stringify(wrapped), "*");
   };
-  Severus.login = function(loc, callback) {
+  Severus.login_facebook = function(loc, callback) {
+    loc = loc || location.href;
+    return Severus.post("login_facebook", {
+      loc: "1",
+      callback: callback
+    });
+  };
+  Severus.login = function(args, callback) {
+    var loc;
     loc = loc || location.href;
     return Severus.post("login", {
-      loc: "1",
+      args: args,
       callback: callback
     });
   };
@@ -138,7 +146,7 @@
             };
           }
           return $.ajax(args);
-        } else if (message.type === "login") {
+        } else if (message.type === "login_facebook") {
           url = "https://graph.facebook.com/oauth/authorize";
           url += ("?client_id=" + (Severus.facebook.client_id));
           url += "&type=user_agent";
@@ -151,6 +159,29 @@
             }
           };
           return parent.postMessage(JSON.stringify(post), "*");
+        } else if (message.type === "login") {
+          args = message.args;
+          args = args.args;
+          console.log("trying to log in with", args);
+          return $.ajax({
+            type: "POST",
+            url: "/login",
+            data: {
+              q: JSON.stringify(args)
+            },
+            success: function(data) {
+              if (data.result === true) {
+                sev.username = args.username;
+                sev.password = args.password;
+              }
+              post = {
+                type: "callback",
+                data: data,
+                id: id
+              };
+              return parent.postMessage(JSON.stringify(post), "*");
+            }
+          });
         } else if (message.type === "set") {
           _.extend(sev, message.args.sets);
           posted = {

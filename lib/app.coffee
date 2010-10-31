@@ -82,7 +82,16 @@ this.db.open () ->
       handle_s_methods req, res, req.query
     else
       console.log "not there"
-  
+
+#handle get and post at the same time
+get_post = (path, func) ->
+  app.post path, func
+  app.get path, func
+
+get_post "/me", (req, res) ->
+  res.send
+    username: req.user()
+
 # take and image upload it and return the address for the thumbnail
 app.post "/upload-image", (req, res) ->
   req.form.complete (err, fields, files) ->
