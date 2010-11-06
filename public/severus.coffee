@@ -75,6 +75,13 @@ Severus.login = (args, callback) ->
   loc = loc || location.href
   Severus.post "login", {args: args, callback: callback}
 
+Severus.logut = (callback) ->
+  Severus.ajax
+    type: "GET"
+    success: () -> callback result: true
+    error: () -> callback result: false
+    url: "/logout"
+
 Severus.set = (sets, callback) ->
   args = {}
   args.sets = sets
