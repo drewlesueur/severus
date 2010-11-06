@@ -1,3 +1,5 @@
+#change officelist references to severus
+#
 require "./secret.coffee"
 
 request = require "request"
@@ -71,11 +73,13 @@ handle_s_methods = (req, res, args) ->
   s_methods[method] new_args, req, res 
   
 this.db.open () -> 
-  app.post "/:method", (req, res) ->
+  #direct method interface for mongodb and authentication
+
+  app.post "/method/:method", (req, res) ->
     if req.param("method") of methods
       handle_methods req, res, req.body
 
-  app.get "/:method", (req, res) ->
+  app.get "/method/:method", (req, res) ->
     if req.param("method") of methods
       handle_methods req, res, req.query
   
@@ -85,6 +89,45 @@ this.db.open () ->
     else
       console.log "not there"
 
+
+  # General REST methods
+
+  app.post "/:collection", (req, res) ->
+    collection = req.param("collection") 
+    args = JSON.parse decodeURIComponent(req.body.model);
+    args._type = collection
+    methods.insert args, req, res #, db
+
+  app.get "/:collection", (req, res) ->
+    collection = req.param "collection"
+    args =
+      _type: collection
+    methods.find args, req, res #, db
+
+  app.get "/:collection/:id", (req, res) ->
+    args =
+      _type: req.param "collection"
+      _id: req.param "id"
+    methods.find args, req, res
+
+  app.put "/:collection/:id", (req, res) ->
+    args = 
+      _type: req.param "collection"
+        va: JSON.parse decodeURIComponent(req.body.model);
+        wh: 
+          _id: req.param "id"
+    methods.update args, req, res #, db
+
+  app.del "/:collection/:id", (req, res) ->
+    args =
+      _type: req.param "collection"
+      _id: req.param "id"
+    methods.remove args, req, res
+
+ 
+
+
+
 #handle get and post at the same time
 get_post = (path, func) ->
   app.post path, func
@@ -93,6 +136,8 @@ get_post = (path, func) ->
 get_post "/me", (req, res) ->
   res.send
     username: req.user()
+
+
 
 # take and image upload it and return the address for the thumbnail
 app.post "/upload-image", (req, res) ->

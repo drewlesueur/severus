@@ -5,6 +5,7 @@ insert = (args, req, res) ->
         console.log err
         res.send "error with insert"
       else
+        delete args._type
         args._user = req.user()
         delete args._id
         collection.insert args, (err, docs) ->
@@ -35,6 +36,7 @@ find = (args, req, res) ->
       res.send "error with find"
     else
       try
+        delete args._type
         if "_id" of args
           args._id = ObjectID.createFromHexString(args.wh._id)
         args["$where"] = "(this._user == '#{req.user()}' || this._public == true)"
@@ -83,8 +85,6 @@ login = (args, req, res) ->
 this.methods =
   login: login
   #shorthand for insert
-  ins: (args, req, res) ->
-    
     
   test2: (args, req, res) ->
     res.send "a ute latanbora"

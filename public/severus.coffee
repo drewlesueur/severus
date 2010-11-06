@@ -9,8 +9,26 @@ Severus.successes = {}
 Severus.errors = {}
 Severus.callbacks = {}
 
+Severus.ajax = (args) ->
+  id = uniqueid++
+  wrapped = id : id, args: args, type: "ajax"
+  Severus.successes[id] = args.success
+  Severus.errors[id] = args.errors
+  if args.success?
+    args.success = id
+  if args.error?
+    args.error = id
+  Severus.iframe.contentWindow.postMessage JSON.stringify(wrapped), "*" # change that star later
+
+
+
 Severus.initialize = (url, callback) ->
   this.url = url or "/iframe.html"
+  $._ajax = $.ajax
+  $.ajax = Severus.ajax
+  console.log "nwer!"
+  #_.bind Severus.ajax, this
+  #_.bind $.ajax, this #tring to use `this` in Severus.ajax. no work
   sev = this
   iframe = $ """<iframe src="#{this.url}" ></iframe>"""
   iframe.bind "load", () ->
@@ -55,17 +73,6 @@ Severus.server = (method, args, func) ->
     success: (data) ->
       func and func data
 
-Severus.ajax = (args) ->
-  id = uniqueid++
-  wrapped = id : id, args: args, type: "ajax"
-  this.successes[id] = args.success
-  this.errors[id] = args.errors
-  if args.success?
-    args.success = id
-  if args.error?
-    args.error = id
-  this.iframe.contentWindow.postMessage JSON.stringify(wrapped), "*" # change that star later
-
 
 Severus.login_facebook = (loc, callback) ->
   loc = loc || location.href
@@ -87,6 +94,7 @@ Severus.set = (sets, callback) ->
   args.sets = sets
   args.callback = callback
   Severus.post "set", args
+  
   
 
 Severus.post = (type, args) ->
@@ -148,7 +156,7 @@ Severus.acceptMessages = (whitelist) ->
               sev.username = args.username
               sev.password = args.password
               sev.session_timeout = 0
-              sev.session = _.md5(sev.username + sev.password + sev.session_timeout)`
+              sev.session = _.md5(sev.username + sev.password + sev.session_timeout)
             post =
               type: "callback"
               data: data
