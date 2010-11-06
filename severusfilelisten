@@ -1,0 +1,22 @@
+#!/bin/bash
+
+pkill severusinotifywait
+if [ "$1" = "inotify" ]
+then
+./severusinotifywait -mr --timefmt '%d/%m/%y %H:%M' --format '%T %w %f' \
+  -e close_write . | while read date file time dir; do
+    echo ${file}
+    if [[ "$file" =~ coffee ]]
+    then 
+      echo "cuaffay"
+      ./runserver
+    fi   
+  done
+  kill $$
+else
+ pkill severusfilelisten
+ sudo nohup ./severusfilelisten inotify &
+ #sudo ./filelisten inotify
+ echo $! > filelisten.txt
+fi
+

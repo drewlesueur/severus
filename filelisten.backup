@@ -1,0 +1,27 @@
+#!/bin/bash
+#inotifywait -mr . -e close_write | grep coffee
+#rm /root/severus_pipe
+#mkfifo /root/severus_pipe
+#kill `cat filelisten.txt`
+
+#sudo inotifywait -rm . | grep coffee | ./runserver &
+
+#sudo nohup inotifywait -rm . > /root/severus_pipe &
+
+
+inotifywait -mr --timefmt '%d/%m/%y %H:%M' --format '%T %w %f' \
+  -e close_write . | while read date file time dir; do
+    echo ${file}
+    if [[ "$file" =~ coffee ]]
+    then 
+      echo "cuaffay"
+    fi   
+  done
+
+#echo $! > filelisten.txt
+#sudo inotifywait -rm . | grep coffee | while read file; do
+#  echo $file
+#done
+
+
+

@@ -10,6 +10,7 @@
   Severus.callbacks = {};
   Severus.ajax = function(args) {
     var _a, _b, id, wrapped;
+    console.log(args);
     id = uniqueid++;
     wrapped = {
       id: id,
@@ -31,7 +32,6 @@
     this.url = url || "/iframe.html";
     $._ajax = $.ajax;
     $.ajax = Severus.ajax;
-    console.log("nwer!");
     sev = this;
     iframe = $("<iframe src=\"" + (this.url) + "\" ></iframe>");
     iframe.bind("load", function() {
@@ -164,6 +164,8 @@
               return parent.postMessage(JSON.stringify(poted), "*");
             };
           }
+          console.log(args);
+          delete args.contentType;
           return $.ajax(args);
         } else if (message.type === "login_facebook") {
           url = "https://graph.facebook.com/oauth/authorize";
@@ -181,7 +183,6 @@
         } else if (message.type === "login") {
           args = message.args;
           args = args.args;
-          console.log("trying to log in with", args);
           return $.ajax({
             type: "POST",
             url: "/login",

@@ -96,7 +96,14 @@ this.db.open () ->
     collection = req.param("collection") 
     args = JSON.parse decodeURIComponent(req.body.model);
     args._type = collection
-    methods.insert args, req, res #, db
+    #alternate response
+    alt = (docs) ->
+      console.log "in alt"
+      doc = docs[0]
+      doc.id = doc._id
+      res.send doc
+    console.log "passing alt"
+    methods.insert args, req, res, alt #, db
 
   app.get "/:collection", (req, res) ->
     collection = req.param "collection"
@@ -137,6 +144,8 @@ get_post "/me", (req, res) ->
   res.send
     username: req.user()
 
+get_post "/ye", (req, res) ->
+  res.send "it worked!"
 
 
 # take and image upload it and return the address for the thumbnail

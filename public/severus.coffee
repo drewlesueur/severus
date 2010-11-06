@@ -10,6 +10,7 @@ Severus.errors = {}
 Severus.callbacks = {}
 
 Severus.ajax = (args) ->
+  console.log args
   id = uniqueid++
   wrapped = id : id, args: args, type: "ajax"
   Severus.successes[id] = args.success
@@ -26,7 +27,6 @@ Severus.initialize = (url, callback) ->
   this.url = url or "/iframe.html"
   $._ajax = $.ajax
   $.ajax = Severus.ajax
-  console.log "nwer!"
   #_.bind Severus.ajax, this
   #_.bind $.ajax, this #tring to use `this` in Severus.ajax. no work
   sev = this
@@ -128,6 +128,11 @@ Severus.acceptMessages = (whitelist) ->
             posted.type = "error"
             posted.data = data
             parent.postMessage JSON.stringify(poted), "*"
+        
+        console.log args
+        delete args.contentType
+        #delete args.processData
+        #delete args.dataType
         $.ajax args
       else if message.type is "login_facebook" #authenticate with facebook.
         url = "https://graph.facebook.com/oauth/authorize"
@@ -146,7 +151,6 @@ Severus.acceptMessages = (whitelist) ->
       else if  message.type is "login" #handling login
         args = message.args
         args = args.args
-        console.log "trying to log in with", args
         $.ajax
           type: "POST"
           url: "/login"

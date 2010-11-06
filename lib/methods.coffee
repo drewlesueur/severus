@@ -1,5 +1,5 @@
 #todo make insert handle more than one object at a time
-insert = (args, req, res) ->
+insert = (args, req, res, alt) ->
   db.collection args._type or "things", (err, collection) ->
       if err
         console.log err
@@ -12,7 +12,11 @@ insert = (args, req, res) ->
           if err
             console.log err
             res.send "super error"
-          res.send doc._id for doc in docs
+          console.log alt
+          if _.isFunction alt
+            alt docs
+          else
+            res.send doc._id for doc in docs
   
 update = (args, req, res) ->
   db.collection args._type or "things", (err, collection) ->
