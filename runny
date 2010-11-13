@@ -2,6 +2,7 @@
 #!/bin/bash
 
 pkill severus
+./runserver
 sudo nohup ./severusfilelisten &
 echo $! > filelisten.txt
 
