@@ -119,20 +119,7 @@ Severus.acceptMessages = (whitelist) ->
       args = message.args
       id = message.id
       if message.type is "ajax" #do an ajax request
-        posted = 
-          id: id
-          type: "success"
-          dataType: args.dataType
-        if args.success?
-          args.success = (data) ->
-            posted.data = data
-            parent.postMessage JSON.stringify(posted), "*"
-        if args.error?
-          args.error = (data) ->
-            posted.type = "error"
-            posted.data = data
-            parent.postMessage JSON.stringify(posted), "*"
-        
+       
         console.log args
         delete args.contentType
         #delete args.processData
@@ -146,16 +133,46 @@ Severus.acceptMessages = (whitelist) ->
         url = url.split("/")[0]
         if (_(args.url).startsWith("http://") or _(args.url).startsWith("https://")) and \
         not(_(args.url).startsWith(protocol + url))
-          console.log "youre here!!"
           old_args = _.clone(args)
-          args.url = "/ajax"
+          args.url = "/method/ajax"
           args.type = "POST"
-          args.data =
+          new_data =
             url: old_args.url
             data: old_args.data
+          args.data =
+            q: JSON.stringify new_data
           #contenttype?
-
-
+          posted =
+            id: id
+            type: "success"
+          if args.success? #should be set to 1 or something if there was a success
+            args.success = (data) ->
+              if not data.error
+                posted.data = data.result
+                parent.postMessage JSON.stringify(posted), "*"
+              else 
+                posted.data = data.error
+                posted.type = "errror"
+                parent.postMessage JSON.stringify(posted), "*"
+          if args.error?
+            args.error = (data) ->
+              posted.type = "error"
+              posted.data = data
+              parent.postMessage JSON.stringify(posted), "*"
+        else #if not an ajax wrapper
+          posted = 
+            id: id
+            type: "success"
+            dataType: args.dataType
+          if args.success?
+            args.success = (data) ->
+              posted.data = data
+              parent.postMessage JSON.stringify(posted), "*"
+          if args.error?
+            args.error = (data) ->
+              posted.type = "error"
+              posted.data = data
+              parent.postMessage JSON.stringify(posted), "*"
         $.ajax args
       else if message.type is "login_facebook" #authenticate with facebook.
         url = "https://graph.facebook.com/oauth/authorize"

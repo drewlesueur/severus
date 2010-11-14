@@ -142,30 +142,12 @@
     whitelist = whitelist || [];
     sev = this;
     return window.addEventListener("message", function(e) {
-      var _a, _b, args, id, message, old_args, post, posted, protocol, redirect_uri, url;
+      var _a, _b, _c, _d, args, id, message, new_data, old_args, post, posted, protocol, redirect_uri, url;
       if (whitelist.length === 0 || _.indexOf(whitelist, e.origin) !== -1) {
         message = JSON.parse(e.data);
         args = message.args;
         id = message.id;
         if (message.type === "ajax") {
-          posted = {
-            id: id,
-            type: "success",
-            dataType: args.dataType
-          };
-          if (typeof (_a = args.success) !== "undefined" && _a !== null) {
-            args.success = function(data) {
-              posted.data = data;
-              return parent.postMessage(JSON.stringify(posted), "*");
-            };
-          }
-          if (typeof (_b = args.error) !== "undefined" && _b !== null) {
-            args.error = function(data) {
-              posted.type = "error";
-              posted.data = data;
-              return parent.postMessage(JSON.stringify(posted), "*");
-            };
-          }
           console.log(args);
           delete args.contentType;
           console.log(Severus.url);
@@ -173,14 +155,58 @@
           url = _.s(Severus.url, Severus.url.indexOf("//") + 2);
           url = url.split("/")[0];
           if ((_(args.url).startsWith("http://") || _(args.url).startsWith("https://")) && !(_(args.url).startsWith(protocol + url))) {
-            console.log("youre here!!");
             old_args = _.clone(args);
-            args.url = "/ajax";
+            args.url = "/method/ajax";
             args.type = "POST";
-            args.data = {
+            new_data = {
               url: old_args.url,
               data: old_args.data
             };
+            args.data = {
+              q: JSON.stringify(new_data)
+            };
+            posted = {
+              id: id,
+              type: "success"
+            };
+            if (typeof (_a = args.success) !== "undefined" && _a !== null) {
+              args.success = function(data) {
+                if (!data.error) {
+                  posted.data = data.result;
+                  return parent.postMessage(JSON.stringify(posted), "*");
+                } else {
+                  posted.data = data.error;
+                  posted.type = "errror";
+                  return parent.postMessage(JSON.stringify(posted), "*");
+                }
+              };
+            }
+            if (typeof (_b = args.error) !== "undefined" && _b !== null) {
+              args.error = function(data) {
+                posted.type = "error";
+                posted.data = data;
+                return parent.postMessage(JSON.stringify(posted), "*");
+              };
+            }
+          } else {
+            posted = {
+              id: id,
+              type: "success",
+              dataType: args.dataType
+            };
+            if (typeof (_c = args.success) !== "undefined" && _c !== null) {
+              args.success = function(data) {
+                posted.data = data;
+                return parent.postMessage(JSON.stringify(posted), "*");
+              };
+            }
+            if (typeof (_d = args.error) !== "undefined" && _d !== null) {
+              args.error = function(data) {
+                posted.type = "error";
+                posted.data = data;
+                return parent.postMessage(JSON.stringify(posted), "*");
+              };
+            }
           }
           return $.ajax(args);
         } else if (message.type === "login_facebook") {
