@@ -3,7 +3,7 @@
 require "./secret.coffee"
 
 request = require "request"
-this.request = request
+root.request = request
 
 mongo = require("mongodb")
 host = 'localhost'
@@ -50,8 +50,16 @@ app.configure () ->
   app.use form(keepExtensions: true)
 
 
-this.ObjectID = mongo.BSONPure.ObjectID
-this.db = new mongo.Db 'mydb', new mongo.Server(host, port, {}), {}
+#this.ObjectID = mongo.BSONPure.ObjectID
+root.ObjectID = mongo.BSONPure.ObjectID
+
+#this.db = new mongo.Db 'mydb', new mongo.Server(host, port, {}), {}
+root.db = new mongo.Db 'mydb', new mongo.Server(host, port, {}), {}
+
+#console.log db
+#db.open () ->
+#  console.log "opened"
+
 
 require("./methods")
 require("./s_methods")
@@ -72,7 +80,7 @@ handle_s_methods = (req, res, args) ->
     new_args[key] = parse_slon val 
   s_methods[method] new_args, req, res 
   
-this.db.open () -> 
+root.db.open () -> 
   #direct method interface for mongodb and authentication
 
   app.post "/method/:method", (req, res) ->

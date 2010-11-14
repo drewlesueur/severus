@@ -1,9 +1,14 @@
-Severus = {}
+Severus =
+  a:1
+
+
 this.Severus = Severus
 _ = this._
 $ = this.$
 
 uniqueid = 0
+
+
 
 Severus.successes = {}
 Severus.errors = {}
@@ -20,7 +25,6 @@ Severus.ajax = (args) ->
   if args.error?
     args.error = id
   Severus.iframe.contentWindow.postMessage JSON.stringify(wrapped), "*" # change that star later
-
 
 
 Severus.initialize = (url, callback) ->
@@ -127,12 +131,31 @@ Severus.acceptMessages = (whitelist) ->
           args.error = (data) ->
             posted.type = "error"
             posted.data = data
-            parent.postMessage JSON.stringify(poted), "*"
+            parent.postMessage JSON.stringify(posted), "*"
         
         console.log args
         delete args.contentType
         #delete args.processData
         #delete args.dataType
+        # this is where you left off
+        console.log Severus.url
+        
+        #next if statement for crossdomain wrapper
+        protocol = _.s(Severus.url,0,Severus.url.indexOf("//")+2)
+        url = _.s(Severus.url, Severus.url.indexOf("//")+2)
+        url = url.split("/")[0]
+        if (_(args.url).startsWith("http://") or _(args.url).startsWith("https://")) and \
+        not(_(args.url).startsWith(protocol + url))
+          console.log "youre here!!"
+          old_args = _.clone(args)
+          args.url = "/ajax"
+          args.type = "POST"
+          args.data =
+            url: old_args.url
+            data: old_args.data
+          #contenttype?
+
+
         $.ajax args
       else if message.type is "login_facebook" #authenticate with facebook.
         url = "https://graph.facebook.com/oauth/authorize"

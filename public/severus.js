@@ -1,6 +1,8 @@
 (function() {
   var $, Severus, _, uniqueid;
-  Severus = {};
+  Severus = {
+    a: 1
+  };
   this.Severus = Severus;
   _ = this._;
   $ = this.$;
@@ -140,7 +142,7 @@
     whitelist = whitelist || [];
     sev = this;
     return window.addEventListener("message", function(e) {
-      var _a, _b, args, id, message, post, posted, redirect_uri, url;
+      var _a, _b, args, id, message, old_args, post, posted, protocol, redirect_uri, url;
       if (whitelist.length === 0 || _.indexOf(whitelist, e.origin) !== -1) {
         message = JSON.parse(e.data);
         args = message.args;
@@ -161,11 +163,25 @@
             args.error = function(data) {
               posted.type = "error";
               posted.data = data;
-              return parent.postMessage(JSON.stringify(poted), "*");
+              return parent.postMessage(JSON.stringify(posted), "*");
             };
           }
           console.log(args);
           delete args.contentType;
+          console.log(Severus.url);
+          protocol = _.s(Severus.url, 0, Severus.url.indexOf("//") + 2);
+          url = _.s(Severus.url, Severus.url.indexOf("//") + 2);
+          url = url.split("/")[0];
+          if ((_(args.url).startsWith("http://") || _(args.url).startsWith("https://")) && !(_(args.url).startsWith(protocol + url))) {
+            console.log("youre here!!");
+            old_args = _.clone(args);
+            args.url = "/ajax";
+            args.type = "POST";
+            args.data = {
+              url: old_args.url,
+              data: old_args.data
+            };
+          }
           return $.ajax(args);
         } else if (message.type === "login_facebook") {
           url = "https://graph.facebook.com/oauth/authorize";

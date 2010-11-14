@@ -1,4 +1,21 @@
 #todo make insert handle more than one object at a time
+ajax = (args, req, res) ->
+  #make a simple http request
+  request {
+    uri: args.url
+    method: args.method || "GET"
+    headers: args.headers || {}
+  }, (error, response, body) ->
+    if error
+      res.send
+        result: null
+        error: error
+    else
+      res.send
+        result: body
+
+        
+
 insert = (args, req, res, alt) ->
   db.collection args._type or "things", (err, collection) ->
       if err
@@ -86,7 +103,9 @@ login = (args, req, res) ->
               res.send
                 result: false
 
-this.methods =
+#this.methods =
+root.methods =
+  ajax: ajax
   login: login
   #shorthand for insert
     
