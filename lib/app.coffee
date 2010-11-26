@@ -215,7 +215,9 @@ app.get '/coffee/:name.js', (req, res) ->
       res.sendfile('public/js/' + req.params.name + '.js')
 
 app.get "/logout", (req, res, params) ->
-  req.logout()
+  #req.logout()
+  req.session.officelist.userdomain = ""
+  req.session.officelist.userid = ""
   res.redirect "/"
 
 exports.run = () ->

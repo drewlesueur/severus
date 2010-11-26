@@ -11,8 +11,7 @@
   Severus.errors = {};
   Severus.callbacks = {};
   Severus.ajax = function(args) {
-    var _a, _b, id, wrapped;
-    console.log(args);
+    var _ref, id, wrapped;
     id = uniqueid++;
     wrapped = {
       id: id,
@@ -21,10 +20,10 @@
     };
     Severus.successes[id] = args.success;
     Severus.errors[id] = args.errors;
-    if (typeof (_a = args.success) !== "undefined" && _a !== null) {
+    if (typeof (_ref = args.success) !== "undefined" && _ref !== null) {
       args.success = id;
     }
-    if (typeof (_b = args.error) !== "undefined" && _b !== null) {
+    if (typeof (_ref = args.error) !== "undefined" && _ref !== null) {
       args.error = id;
     }
     return Severus.iframe.contentWindow.postMessage(JSON.stringify(wrapped), "*");
@@ -36,6 +35,10 @@
     $.ajax = Severus.ajax;
     sev = this;
     iframe = $("<iframe src=\"" + (this.url) + "\" ></iframe>");
+    iframe.css({
+      position: "absolute",
+      left: "-999px"
+    });
     iframe.bind("load", function() {
       return Severus.set({
         url: sev.url
@@ -47,27 +50,27 @@
     this.iframe = iframe[0];
     self = this;
     return window.addEventListener("message", function(e) {
-      var _a, _b, _c, _d, _e, data, id, message, type;
+      var _ref, data, id, message, type;
       message = JSON.parse(e.data);
       id = message.id;
       data = message.data;
       type = message.type;
-      if (type === "success" && (typeof (_a = self.successes) !== "undefined" && _a !== null) && id in self.successes) {
+      if (type === "success" && (typeof (_ref = self.successes) !== "undefined" && _ref !== null) && id in self.successes) {
         self.successes[id](data);
-      } else if (type === "error" && (typeof (_b = self.errors) !== "undefined" && _b !== null) && id in self.errors) {
+      } else if (type === "error" && (typeof (_ref = self.errors) !== "undefined" && _ref !== null) && id in self.errors) {
         self.errors[id](data);
       } else if (type === "callback") {
         self.callbacks[id](data);
       } else if (type === "redirect") {
         location.href = data.url;
       }
-      if ((typeof (_c = self.successes) !== "undefined" && _c !== null) && id in self.successes) {
+      if ((typeof (_ref = self.successes) !== "undefined" && _ref !== null) && id in self.successes) {
         delete self.successes[id];
       }
-      if ((typeof (_d = self.errors) !== "undefined" && _d !== null) && id in self.errors) {
+      if ((typeof (_ref = self.errors) !== "undefined" && _ref !== null) && id in self.errors) {
         delete self.errors[id];
       }
-      return (typeof (_e = self.callbacks) !== "undefined" && _e !== null) && id in self.callbacks ? delete self.errors[id] : null;
+      return (typeof (_ref = self.callbacks) !== "undefined" && _ref !== null) && id in self.callbacks ? delete self.errors[id] : null;
     }, false);
   };
   Severus.facebook = {
@@ -100,7 +103,7 @@
       callback: callback
     });
   };
-  Severus.logut = function(callback) {
+  Severus.logout = function(callback) {
     return Severus.ajax({
       type: "GET",
       success: function() {
@@ -124,7 +127,7 @@
     return Severus.post("set", args);
   };
   Severus.post = function(type, args) {
-    var _a, id, wrapped;
+    var _ref, id, wrapped;
     id = uniqueid++;
     wrapped = {
       id: id,
@@ -132,7 +135,7 @@
       type: type
     };
     this.callbacks[id] = args.callback;
-    if (typeof (_a = args.callback) !== "undefined" && _a !== null) {
+    if (typeof (_ref = args.callback) !== "undefined" && _ref !== null) {
       args.callback = id;
     }
     return this.iframe.contentWindow.postMessage(JSON.stringify(wrapped), "*");
@@ -142,15 +145,13 @@
     whitelist = whitelist || [];
     sev = this;
     return window.addEventListener("message", function(e) {
-      var _a, _b, _c, _d, args, id, message, new_data, old_args, post, posted, protocol, redirect_uri, url;
+      var _ref, args, id, message, new_data, old_args, post, posted, protocol, redirect_uri, url;
       if (whitelist.length === 0 || _.indexOf(whitelist, e.origin) !== -1) {
         message = JSON.parse(e.data);
         args = message.args;
         id = message.id;
         if (message.type === "ajax") {
-          console.log(args);
           delete args.contentType;
-          console.log(Severus.url);
           protocol = _.s(Severus.url, 0, Severus.url.indexOf("//") + 2);
           url = _.s(Severus.url, Severus.url.indexOf("//") + 2);
           url = url.split("/")[0];
@@ -169,7 +170,7 @@
               id: id,
               type: "success"
             };
-            if (typeof (_a = args.success) !== "undefined" && _a !== null) {
+            if (typeof (_ref = args.success) !== "undefined" && _ref !== null) {
               args.success = function(data) {
                 if (!data.error) {
                   posted.data = data.result;
@@ -181,7 +182,7 @@
                 }
               };
             }
-            if (typeof (_b = args.error) !== "undefined" && _b !== null) {
+            if (typeof (_ref = args.error) !== "undefined" && _ref !== null) {
               args.error = function(data) {
                 posted.type = "error";
                 posted.data = data;
@@ -194,13 +195,13 @@
               type: "success",
               dataType: args.dataType
             };
-            if (typeof (_c = args.success) !== "undefined" && _c !== null) {
+            if (typeof (_ref = args.success) !== "undefined" && _ref !== null) {
               args.success = function(data) {
                 posted.data = data;
                 return parent.postMessage(JSON.stringify(posted), "*");
               };
             }
-            if (typeof (_d = args.error) !== "undefined" && _d !== null) {
+            if (typeof (_ref = args.error) !== "undefined" && _ref !== null) {
               args.error = function(data) {
                 posted.type = "error";
                 posted.data = data;
@@ -227,7 +228,7 @@
           args = args.args;
           return $.ajax({
             type: "POST",
-            url: "/login",
+            url: "/method/login",
             data: {
               q: JSON.stringify(args)
             },
@@ -235,8 +236,6 @@
               if (data.result === true) {
                 sev.username = args.username;
                 sev.password = args.password;
-                sev.session_timeout = 0;
-                sev.session = _.md5(sev.username + sev.password + sev.session_timeout);
               }
               post = {
                 type: "callback",
@@ -258,4 +257,4 @@
       }
     }, false);
   };
-})();
+}).call(this);

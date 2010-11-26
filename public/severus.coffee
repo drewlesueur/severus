@@ -15,7 +15,6 @@ Severus.errors = {}
 Severus.callbacks = {}
 
 Severus.ajax = (args) ->
-  console.log args
   id = uniqueid++
   wrapped = id : id, args: args, type: "ajax"
   Severus.successes[id] = args.success
@@ -35,6 +34,9 @@ Severus.initialize = (url, callback) ->
   #_.bind $.ajax, this #tring to use `this` in Severus.ajax. no work
   sev = this
   iframe = $ """<iframe src="#{this.url}" ></iframe>"""
+  iframe.css
+    position: "absolute"
+    left: "-999px"
   iframe.bind "load", () ->
     Severus.set {url: sev.url}, (data) ->
       callback()
@@ -86,7 +88,7 @@ Severus.login = (args, callback) ->
   loc = loc || location.href
   Severus.post "login", {args: args, callback: callback}
 
-Severus.logut = (callback) ->
+Severus.logout = (callback) ->
   Severus.ajax
     type: "GET"
     success: () -> callback result: true
@@ -120,12 +122,10 @@ Severus.acceptMessages = (whitelist) ->
       id = message.id
       if message.type is "ajax" #do an ajax request
        
-        console.log args
         delete args.contentType
         #delete args.processData
         #delete args.dataType
         # this is where you left off
-        console.log Severus.url
         
         #next if statement for crossdomain wrapper
         protocol = _.s(Severus.url,0,Severus.url.indexOf("//")+2)
@@ -193,14 +193,14 @@ Severus.acceptMessages = (whitelist) ->
         args = args.args
         $.ajax
           type: "POST"
-          url: "/login"
+          url: "/method/login"
           data: {q: JSON.stringify(args)} 
           success: (data) ->
             if data.result is true
               sev.username = args.username
               sev.password = args.password
-              sev.session_timeout = 0
-              sev.session = _.md5(sev.username + sev.password + sev.session_timeout)
+              #sev.session_timeout = 0
+              #sev.session = _.md5(sev.username + sev.password + sev.session_timeout)
             post =
               type: "callback"
               data: data
