@@ -1,8 +1,0 @@
-#!/bin/bash
-kill `cat pid.txt`
-sudo coffee server.coffee &
-echo $! > pid.txt
-date >> log.txt
-disown $!
-echo "running server"
-wait
