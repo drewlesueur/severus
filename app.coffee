@@ -1,6 +1,6 @@
 config = require './config.coffee'
 _ = require "underscore"
-require("drews-mixins") _
+drews = require("drews-mixins")
 mongo = require("mongodb")
 mongoHost = config.db.host
 mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT
@@ -16,8 +16,14 @@ drewsSignIn = (req, res, next) ->
     req.session.email isnt null
   next()
 
+enableCORS = (req, res, next) ->
+  res.setHeader "Access-Control-Allow-Origin", "*"
+  next()
+
+
 app = module.exports = express.createServer()
 app.configure () ->
+  app.use enableCORS
   app.use(express.bodyParser())
   app.use express.cookieParser()
   app.use express.session secret: "boom shaka laka"
@@ -37,11 +43,13 @@ pg = (p, f) ->
   app.post p, f
   app.get p, f
 
-
-
-
 # Routes
 
+
+       
+
+  
+  
 
 
 count = 0
@@ -63,7 +71,6 @@ getCollection = (db, collection, cb=->) ->
     collections[db].db = dbBig
     collections[db].cns = {}
     dbBig.open (err, _db) ->
-
       ObjectID = dbBig.bson_serializer.ObjectID
       collections[db].ObjectID = ObjectID 
       collections[db].db = _db
@@ -76,70 +83,85 @@ getCollection = (db, collection, cb=->) ->
       cb err, _collection, collections[db]
   count++  
   if mayHaveDb()
-    log "may have db #{count}"
     if gettingDb()
-      log "getting db #{count}"
       once collections[db], "gotten", startGettingCollection
     else if haveCollection()
-      log "log have colleciton #{count}"
       cb null, cachedCollection(), collections[db]
     else
-      log "not getting nor have collection #{count}"
       startGettingCollection()
   else
-    log "dont have and not getting db #{count}"
     startGettingDb()
     
 
+getCollection "office_test", "listings", (err, c) ->
+  c.find().toArray (err, _docs) ->
+    #console.log _docs
+    log """
+    separator
+    """
+getCollection "office_test", "listings", (err, c) ->
+  c.find().toArray (err, _docs) ->
+    #console.log _docs
+    log """
+    separator
+    """
+getCollection "office_test", "listings", (err, c) ->
+  c.find().toArray (err, _docs) ->
+    #console.log _docs
+    log """
+    separator
+    """
+findOne = (db, collection, _id, cb) ->
+  find db, collection, _id, "one", cb
 
-  
+find = (args..., cb) ->
+  log "the args are #{args}"
+  [db, collection, wheres, oneOrMany] = args
+  log "the collection is #{collection}"
+  oneOrMany ||= "many"
+  wheres ||= {}
+  getCollection db, collection, (err, _collection, extra) ->
+    if err then return cb err
+    if _.isString wheres 
+      wheres = extra.ObjectID.createFromHexString(wheres) 
+      # wheres is now the id
+    if oneOrMany == "many"
+      _collection.find(wheres).toArray (err, theArray) ->
+        cb err, theArray
+    else
+      _collection.findOne wheres, (err, _document) ->
+        cb err, _document
 
-getCollection "office_test", "listings", (err, c) ->
-  c.find().toArray (err, _docs) ->
-    #console.log _docs
-    log """
-    separator
-    """
-getCollection "office_test", "listings", (err, c) ->
-  c.find().toArray (err, _docs) ->
-    #console.log _docs
-    log """
-    separator
-    """
-getCollection "office_test", "listings", (err, c) ->
-  c.find().toArray (err, _docs) ->
-    #console.log _docs
-    log """
-    separator
-    """
   
 app.get "/:db/:collection/:id", (req, res) ->
   {db, collection, id} = req.params
-  getCollection db, collection, (err, _collection, extra) ->
-    _id = extra.ObjectID.createFromHexString(id) 
-    _collection.findOne _id, (err, _document) ->
-      res.send _document
+  find db, collection, {_id: id}, (err, _document) ->
+    res.send _document
 
 app.get "/:db/:collection", (req, res) ->
-  log "this is ok"
   {db, collection} = req.params
+  find db, collection, (err, _array) ->
+    res.send _array
+
   getCollection db, collection, (err, _collection) ->
-    log "got hizzle"
     if err
       return log "error"
     _collection.find().toArray (err, theArray) ->
       res.send theArray
 
-false and app.post "/:db/:collection", (req, res) ->
+save = (db, collection, obj, cb) ->
+  getCollection db, collection, (err, _collection, extra) ->
+    if err then return cb err
+    _collection.insert obj, (err, _objs) ->
+      cb err, _objs 
+app.post "/:db/:collection", (req, res) ->
   {db, collection} = req.params
-  getCollection db, collection, (err, _collection) ->
-    _collection.insert req.body, (err) ->
-      res.send {}
+  save db, collection, req.body, (err) -> res.send {}
       
 false and app.delete "/:db/:collection/:id", (req, res) ->
   {db, collection, id} = req.params
-  _id = ObjectID.createFromHexString(id) 
-  getCollection db, collection, (err, _collection) ->
+  getCollection db, collection, (err, _collection, extra) ->
+    _id = ObjectID.createFromHexString(id) 
     _collection.remove _id: _id, (err) ->
       res.send {}
 
@@ -158,7 +180,27 @@ pg "/p", (req, res) ->
 pg "/whoami", (req, res) ->
   res.send req.session
   
+test = (a, b..., cb) ->
+  cb null, yo: "#{a} yo"
 
+rpcMethods = {
+  save
+  find
+  test
+}
+
+# soon add web socket rpc that goes the other way
+# or events from the server or something like that
+pg "/rpc", (req, res) ->
+  body = req.body
+  {method, params, id} = body
+  log method, params, id
+  log rpcMethods[method]
+  rpcMethods[method] params..., (err, result) ->
+    res.send
+      result: result
+      error: err
+      id: id
 
 exports.app = app
 
