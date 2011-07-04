@@ -1,5 +1,6 @@
 secret.coffee
 nohup.out
 config.coffee
+config.js
 *.swp
 *.sw0

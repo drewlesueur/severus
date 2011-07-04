@@ -5,9 +5,8 @@ mongo = require("mongodb")
 mongoHost = config.db.host
 mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT
 
-{wait, trigger, bind, once} = _
+{wait, trigger, bind, once, log} = _
 
-log = (args...) -> console.log args... 
 
 express = require('express')
 
@@ -111,27 +110,46 @@ getCollection "office_test", "listings", (err, c) ->
     log """
     separator
     """
-findOne = (db, collection, _id, cb) ->
-  find db, collection, _id, "one", cb
 
-find = (args..., cb) ->
-  log "the args are #{args}"
-  [db, collection, wheres, oneOrMany] = args
-  log "the collection is #{collection}"
-  oneOrMany ||= "many"
-  wheres ||= {}
+remove = (args, cb) ->
+  {db, collection, obj, user} = args
+  obj ||= {}
   getCollection db, collection, (err, _collection, extra) ->
     if err then return cb err
-    if _.isString wheres 
-      wheres = extra.ObjectID.createFromHexString(wheres) 
-      # wheres is now the id
+    if _.isString obj 
+      obj = extra.ObjectID.createFromHexString(obj) 
+      # obj is now the id
+    _collection.remove obj, (err, theArray) ->
+      cb err, theArray
+ 
+
+findOne = (args, cb) ->
+  args.oneOrMany = "one"
+  find args, cb
+
+find = (args, cb) ->
+  {db, collection, obj, oneOrMany, user} = args
+  oneOrMany ||= "many"
+  obj ||= {}
+  getCollection db, collection, (err, _collection, extra) ->
+    if err then return cb err
+    if _.isString obj
+      obj = extra.ObjectID.createFromHexString(obj) 
+      # obj is now the id
     if oneOrMany == "many"
-      _collection.find(wheres).toArray (err, theArray) ->
+      _collection.find(obj).toArray (err, theArray) ->
         cb err, theArray
     else
-      _collection.findOne wheres, (err, _document) ->
+      _collection.findOne obj, (err, _document) ->
         cb err, _document
 
+save = (args, cb) ->
+  {db, collection, obj, user} = args
+  getCollection db, collection, (err, _collection, extra) ->
+    if err then return cb err
+    _collection.insert obj, (err, _objs) ->
+      cb err, _objs 
+insert = save
   
 app.get "/:db/:collection/:id", (req, res) ->
   {db, collection, id} = req.params
@@ -149,11 +167,7 @@ app.get "/:db/:collection", (req, res) ->
     _collection.find().toArray (err, theArray) ->
       res.send theArray
 
-save = (db, collection, obj, cb) ->
-  getCollection db, collection, (err, _collection, extra) ->
-    if err then return cb err
-    _collection.insert obj, (err, _objs) ->
-      cb err, _objs 
+
 app.post "/:db/:collection", (req, res) ->
   {db, collection} = req.params
   save db, collection, req.body, (err) -> res.send {}
@@ -186,16 +200,18 @@ test = (a, b..., cb) ->
 rpcMethods = {
   save
   find
+  findOne
+  remove
   test
+
 }
 
 # soon add web socket rpc that goes the other way
 # or events from the server or something like that
+# credentails won't be needed for sockets huh?
 pg "/rpc", (req, res) ->
   body = req.body
   {method, params, id} = body
-  log method, params, id
-  log rpcMethods[method]
   rpcMethods[method] params..., (err, result) ->
     res.send
       result: result
