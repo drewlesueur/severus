@@ -12,6 +12,8 @@ define "severus", () ->
   serverCallMaker = (call)  ->
     (args..., cb) ->
       [collection, obj, extra] = args
+      log "#{call}ing #{collection} with "
+      log obj
       extra ||= {}
       args =
         sessionId: self.sessionId

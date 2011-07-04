@@ -1,14 +1,21 @@
 (function() {
-  var app, authenticateUser, bind, collections, config, count, createSession, createUser, crypto, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, insert, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, once, pg, remove, rpcMethods, save, test, trigger, userExists, wait, whoami, _;
-  var __slice = Array.prototype.slice;
+  var app, authenticateUser, bind, collections, config, count, createSession, createUser, crypto, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaders, getValueMaker, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
+  var __slice = Array.prototype.slice, __indexOf = Array.prototype.indexOf || function(item) {
+    for (var i = 0, l = this.length; i < l; i++) {
+      if (this[i] === item) return i;
+    }
+    return -1;
+  };
   config = require('./config.coffee');
   _ = require("underscore");
   drews = require("drews-mixins");
   mongo = require("mongodb");
+  nimble = require("nimble");
   mongoHost = config.db.host;
   mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT;
   crypto = require("crypto");
   wait = _.wait, trigger = _.trigger, bind = _.bind, once = _.once, log = _.log;
+  series = nimble.series, parallel = nimble.parallel;
   express = require('express');
   drewsSignIn = function(req, res, next) {
     req.isSignedIn = function() {
@@ -166,22 +173,94 @@
       }
     });
   };
-  save = function(args, cb) {
-    var collection, db, obj, sessionId;
-    db = args.db, collection = args.collection, obj = args.obj, sessionId = args.sessionId;
-    if ("_id" in obj) {
-      obj._id = collections[db].ObjectID.createFromHexString(obj._id);
-    }
-    return getCollection(db, collection, function(err, _collection, extra) {
-      if (err) {
-        return cb(err);
-      }
-      return _collection.insert(obj, function(err, _objs) {
-        return cb(err, _objs);
+  getValueMaker = function(value) {
+    return function(db, collection, _id, cb) {
+      return getCollection(db, collection, function(err, _collection, extra) {
+        if (_.isString(_id)) {
+          _id = collections[db].ObjectID.createFromHexString(_id);
+        }
+        return _collection.findOne(_id, function(err, obj) {
+          return cb(err, obj[value]);
+        });
+      });
+    };
+  };
+  getWriters = getValueMaker("_writers");
+  getReaders = getValueMaker("_readers");
+  getGroups = function(sessionId, cb) {
+    return whoami(sessionId, db, function(err, user) {
+      return getCollection(db, "user_groups", function(err, userGroups) {
+        return userGroups.find({
+          userId: user._id
+        }, function(err, groups) {
+          return cb(err, [user._id].concat(__slice.call(groups.groups)));
+        });
       });
     });
   };
-  insert = save;
+  save = function(args, cb) {
+    var collection, db, doGetGroups, doGetWriters, doTheSaving, isNew, obj, sessionId;
+    db = args.db, collection = args.collection, obj = args.obj, sessionId = args.sessionId;
+    isNew = true;
+    if ("_id" in obj) {
+      isNew = false;
+      obj._id = collections[db].ObjectID.createFromHexString(obj._id);
+    }
+    doTheSaving = function() {
+      return getCollection(db, collection, function(err, _collection, extra) {
+        if (err) {
+          return cb(err);
+        }
+        return _collection.save(obj, function(err, _obj) {
+          return cb(err, _obj);
+        });
+      });
+    };
+    doGetWriters = function(cb) {
+      if (!isNew) {
+        return getWriters(db, collection, obj._id, cb);
+      } else {
+        return cb(null, ["public"]);
+      }
+    };
+    doGetGroups = function(cb) {
+      if (sessionId) {
+        return getGroups(sessionId, db, function(err, groups) {
+          if (isNew) {
+            if (!("_writers" in obj)) {
+              obj._writers = [groups[0]];
+            }
+            if (!("_readers" in obj)) {
+              obj._readers = ["public"];
+            }
+          }
+          return cb(err, groups);
+        });
+      } else {
+        return cb(null, ["public"]);
+      }
+    };
+    return parallel([doGetWriters, doGetGroups], function(err, results) {
+      var found, groupId, groups, writers, _i, _len;
+      writers = results[0], groups = results[1];
+      found = false;
+      for (_i = 0, _len = groups.length; _i < _len; _i++) {
+        groupId = groups[_i];
+        if (__indexOf.call(writers, groupId) >= 0) {
+          found = true;
+          doTheSaving();
+          break;
+        }
+      }
+      if (!found) {
+        return cb({
+          message: "no permissions to save",
+          groups: groups,
+          writers: writers
+        });
+      }
+    });
+  };
   userExists = function(db, username, cb) {
     return getCollection(db, "users", function(err, users) {
       return users.findOne({
@@ -215,11 +294,31 @@
     });
   };
   createUser = function(db, username, password, cb) {
-    return getCollection(db, "users", function(err, users) {
-      return users.insert({
-        username: username,
-        password: md5(password)
-      }, cb);
+    var saveUser, saveUserGroups;
+    saveUser = function(d) {
+      return getCollection(db, "users", function(err, users) {
+        return users.save({
+          username: username,
+          password: md5(password)
+        }, function(err, user) {
+          return d(user);
+        });
+      });
+    };
+    saveUserGroups = function(d) {
+      return getCollection(db, "user_groups", function(err, userGroups) {
+        return userGroups.save({
+          userId: user._id,
+          groups: []
+        }, function(err, group) {
+          return d(group);
+        });
+      });
+    };
+    return parallel([saveUser, saveUserGroups], function(err, _arg) {
+      var groups, user;
+      user = _arg[0], groups = _arg[1];
+      return cb(err, user);
     });
   };
   md5 = function(data) {

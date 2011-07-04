@@ -17,23 +17,24 @@ $ ->
 
   id = null
   tests = [ (d)->d()
+  
   (d) -> remove "bands", (err, result) ->
     find "bands", (err, results) ->
       eq results.length, 0, "removing should give us no results"
       save "bands", band, (err, result) ->
-        eq result.length, 1, "length should be 1"
-        eq result[0].name, "Aterciopelados"
-        band = result[0]
+        eq result.name, "Aterciopelados"
+        band = result
         find "bands", (err, results) ->
-          eq results[0].name, "Aterciopelados"
-          band.concerts = ["Colombia", "California"]
+          eq results.length, 1, "Should get 1 result"
+          result = results[0]
+          eq result.name, "Aterciopelados", "Name should be atercios"
           d()
 
   (d) -> save "bands",
     name: "Julieta Venegas"
     age: 40
     songs: ["me voy", "otra cosa"]
-  , (err, reslut) ->
+  , (err, result) ->
     find "bands", age: 40, (err, results) ->
       eq results[0].age, 40, "should get age" 
       d()
@@ -41,8 +42,7 @@ $ ->
 
   (d) -> remove "bands", (err) ->
     band = name: "choc quib town", albums: ["oro"]
-    save "bands", band, (err, bands) ->
-      band = bands[0]
+    save "bands", band, (err, band) ->
       band.members = ["goyo", "tostao", "slow"]
       save "bands", band, (err) ->
         find "bands", (err, bands) ->

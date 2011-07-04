@@ -16,6 +16,8 @@
         var args, cb, collection, extra, obj, _i;
         args = 2 <= arguments.length ? __slice.call(arguments, 0, _i = arguments.length - 1) : (_i = 0, []), cb = arguments[_i++];
         collection = args[0], obj = args[1], extra = args[2];
+        log("" + call + "ing " + collection + " with ");
+        log(obj);
         extra || (extra = {});
         args = {
           sessionId: self.sessionId,

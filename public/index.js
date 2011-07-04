@@ -24,12 +24,12 @@
           return find("bands", function(err, results) {
             eq(results.length, 0, "removing should give us no results");
             return save("bands", band, function(err, result) {
-              eq(result.length, 1, "length should be 1");
-              eq(result[0].name, "Aterciopelados");
-              band = result[0];
+              eq(result.name, "Aterciopelados");
+              band = result;
               return find("bands", function(err, results) {
-                eq(results[0].name, "Aterciopelados");
-                band.concerts = ["Colombia", "California"];
+                eq(results.length, 1, "Should get 1 result");
+                result = results[0];
+                eq(result.name, "Aterciopelados", "Name should be atercios");
                 return d();
               });
             });
@@ -40,7 +40,7 @@
           name: "Julieta Venegas",
           age: 40,
           songs: ["me voy", "otra cosa"]
-        }, function(err, reslut) {
+        }, function(err, result) {
           return find("bands", {
             age: 40
           }, function(err, results) {
@@ -54,8 +54,7 @@
             name: "choc quib town",
             albums: ["oro"]
           };
-          return save("bands", band, function(err, bands) {
-            band = bands[0];
+          return save("bands", band, function(err, band) {
             band.members = ["goyo", "tostao", "slow"];
             return save("bands", band, function(err) {
               return find("bands", function(err, bands) {

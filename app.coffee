@@ -2,12 +2,13 @@ config = require './config.coffee'
 _ = require "underscore"
 drews = require("drews-mixins")
 mongo = require("mongodb")
+nimble = require "nimble"
 mongoHost = config.db.host
 mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT
 crypto = require "crypto"
 
 {wait, trigger, bind, once, log} = _
-
+{series, parallel} = nimble
 
 express = require('express')
 
@@ -144,15 +145,75 @@ find = (args, cb) ->
       _collection.findOne obj, (err, _document) ->
         cb err, _document
 
+getValueMaker = (value) ->
+  (db, collection, _id, cb) ->
+    getCollection db, collection, (err, _collection, extra) ->
+      if _.isString _id
+        _id = collections[db].ObjectID.createFromHexString(_id) 
+      _collection.findOne _id, (err, obj) ->
+        #TODO: only get the writers here
+        cb err, obj[value]
+#TODO: maybe a dependencies table for dependent deletes
+getWriters = getValueMaker "_writers"
+getReaders = getValueMaker "_readers"
+getGroups =  (sessionId, cb) ->
+  whoami sessionId, db, (err, user) ->
+    getCollection db, "user_groups", (err, userGroups) ->
+      userGroups.find userId: user._id, (err, groups) ->
+        cb err, [user._id, groups.groups...]
+  
 save = (args, cb) ->
   {db, collection, obj, sessionId} = args
+  isNew = true
   if "_id" of obj
+    isNew = false
     obj._id = collections[db].ObjectID.createFromHexString(obj._id) 
-  getCollection db, collection, (err, _collection, extra) ->
-    if err then return cb err
-    _collection.insert obj, (err, _objs) ->
-      cb err, _objs 
-insert = save
+  doTheSaving = () ->
+    getCollection db, collection, (err, _collection, extra) ->
+      if err then return cb err
+      _collection.save obj, (err, _obj) ->
+        cb err, _obj 
+
+  doGetWriters = (cb) ->
+    if not isNew
+      getWriters db, collection, obj._id, cb
+    else
+      cb null, ["public"]
+      
+  doGetGroups = (cb) ->
+    if sessionId
+      getGroups sessionId, db, (err, groups) ->
+        if isNew
+          if "_writers" not of obj
+            obj._writers = [groups[0]] #default only you can edit
+          if "_readers" not of obj
+            obj._readers = ["public"] #default all can see
+        cb err, groups
+    else
+      cb null, ["public"]
+  parallel [
+    doGetWriters
+    doGetGroups
+  ], (err, results) ->
+    [writers, groups] = results
+    found = false
+    for groupId in groups
+      if groupId in writers
+        found = true
+        doTheSaving()  
+        break
+    if not found
+      cb
+        message: "no permissions to save"
+        groups: groups
+        writers: writers
+        
+    
+
+  
+      
+
+  
 
 userExists = (db, username, cb) ->
   getCollection db, "users", (err, users) ->
@@ -161,7 +222,7 @@ userExists = (db, username, cb) ->
         cb err, user
       else
         cb err, false
-
+#NOTE: save returns one, insert returns many
 createSession = (db, userId, cb) ->
   getCollection db, "sessions", (err, sessions) ->
     sessionId = _.uuid()
@@ -175,11 +236,25 @@ deleteSession = (db, userId, cb) ->
       sessionId: sessionId
     , cb
 createUser = (db, username, password, cb) ->
-  getCollection db, "users", (err, users) ->
-    users.insert
-      username: username
-      password: md5 password
-    , cb
+  saveUser = (d) ->
+    getCollection db, "users", (err, users) ->
+      users.save
+        username: username
+        password: md5 password
+      , (err, user) ->
+        d user
+  saveUserGroups = (d) ->
+    getCollection db, "user_groups", (err, userGroups) ->
+      userGroups.save
+        userId: user._id
+        groups: []
+      , (err, group) ->
+        d group
+  parallel [saveUser, saveUserGroups], (err, [user, groups]) ->
+    cb err, user
+    
+    
+
 md5 = (data) ->
   crypto.createHash('md5').update(data).digest("hex")
 
