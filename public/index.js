@@ -70,12 +70,25 @@
           log(user);
           sessionId = user.sessionId;
           eq(user.username, "drew", "username should match");
-          return serv("whoami", function(err, user) {
-            eq(err, null);
-            log(err);
-            eq(user.username, "drew", "whoami should work");
-            return d();
-          });
+          return series([
+            function(cb) {
+              return serv("whoami", function(err, user) {
+                eq(err, null);
+                log(err);
+                eq(user.username, "drew", "whoami should work");
+                return cb(null, user._id);
+              });
+            }, function(id, cb) {
+              band = {
+                name: "Javiera Mena"
+              };
+              return save("bands", band, function(err, band) {
+                eq(band.name, "Javiera Mena", "name should equal");
+                eq(band._writers, id, "only I can write");
+                return log(band);
+              });
+            }
+          ]);
         });
       }
     ];

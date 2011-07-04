@@ -54,12 +54,21 @@ $ ->
     log user
     sessionId = user.sessionId
     eq user.username, "drew", "username should match"
-    serv "whoami", (err, user) ->
-      eq err, null
-      log err
-      eq user.username, "drew", "whoami should work"
-      d()
-  ]
+    series [
+      (cb) -> serv "whoami", (err, user) ->
+        eq err, null
+        log err
+        eq user.username, "drew", "whoami should work"
+        cb null, user._id
+      (id, cb) ->
+        band = name: "Javiera Mena"
+        save "bands", band, (err, band) ->
+          eq band.name, "Javiera Mena", "name should equal"
+          eq band._writers, id, "only I can write"
+          log band
+    ]
+
+  ] # end tests
 
     
   series tests, -> log """

@@ -1,5 +1,5 @@
 (function() {
-  var app, authenticateUser, bind, collections, config, count, createSession, createUser, crypto, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaders, getValueMaker, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
+  var app, authenticateUser, bind, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaders, getValueMaker, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
   var __slice = Array.prototype.slice, __indexOf = Array.prototype.indexOf || function(item) {
     for (var i = 0, l = this.length; i < l; i++) {
       if (this[i] === item) return i;
@@ -56,8 +56,9 @@
   count = 0;
   mongoServer = new mongo.Server(mongoHost, mongoPort, {});
   collections = {};
+  db_is_being_opened = false;
   getCollection = function(db, collection, cb) {
-    var cacheCollection, cachedCollection, getDb, gettingDb, haveCollection, mayHaveDb, startGettingCollection, startGettingDb;
+    var cacheCollection, cachedCollection, getDb, gettingDb, giveCollection, haveCollection, mayHaveDb, startGettingCollection, startGettingDb;
     if (cb == null) {
       cb = function() {};
     }
@@ -81,13 +82,21 @@
     };
     startGettingDb = function() {
       var dbBig;
-      dbBig = new mongo.Db(db, mongoServer, {});
-      collections[db] = {};
+      collections[db] || (collections[db] = {});
       collections[db].state = "getting";
+      if (db_is_being_opened) {
+        return wait(500, function() {
+          return startGettingDb();
+        });
+        return;
+      }
+      db_is_being_opened = true;
+      dbBig = new mongo.Db(db, mongoServer, {});
       collections[db].db = dbBig;
       collections[db].cns = {};
       return dbBig.open(function(err, _db) {
         var ObjectID;
+        db_is_being_opened = false;
         ObjectID = dbBig.bson_serializer.ObjectID;
         collections[db].ObjectID = ObjectID;
         collections[db].db = _db;
@@ -103,13 +112,20 @@
       });
     };
     count++;
-    if (mayHaveDb()) {
-      if (gettingDb()) {
-        return once(collections[db], "gotten", startGettingCollection);
-      } else if (haveCollection()) {
+    giveCollection = function() {
+      if (haveCollection()) {
         return cb(null, cachedCollection(), collections[db]);
       } else {
         return startGettingCollection();
+      }
+    };
+    if (mayHaveDb()) {
+      if (gettingDb()) {
+        return once(collections[db], "gotten", function() {
+          return giveCollection();
+        });
+      } else {
+        return giveCollection();
       }
     } else {
       return startGettingDb();
@@ -125,9 +141,20 @@
       return log("separator");
     });
   });
-  getCollection("office_test", "listings", function(err, c) {
+  getCollection("office_test", "listings_groups", function(err, c) {
     return c.find().toArray(function(err, _docs) {
-      return log("separator");
+      return log("separator groups");
+    });
+  });
+  getCollection("severus_the_tl", "users", function(err, users) {
+    return log("Should only be here once");
+  });
+  getCollection("severus_the_tl", "user_groups", function(err, users) {
+    return log("this once too");
+  });
+  getCollection("office_test", "listings_groups", function(err, c) {
+    return c.find().toArray(function(err, _docs) {
+      return log("separator groups again");
     });
   });
   remove = function(args, cb) {
@@ -187,9 +214,16 @@
   };
   getWriters = getValueMaker("_writers");
   getReaders = getValueMaker("_readers");
-  getGroups = function(sessionId, cb) {
+  getGroups = function(sessionId, db) {
+    log("get groups was called");
     return whoami(sessionId, db, function(err, user) {
       return getCollection(db, "user_groups", function(err, userGroups) {
+        if (err) {
+          log("THERE WAS AN ERROR");
+          log(err.message);
+        } else {
+          log("THERE WAS NO ERROR");
+        }
         return userGroups.find({
           userId: user._id
         }, function(err, groups) {

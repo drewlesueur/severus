@@ -56,9 +56,11 @@ pg = (p, f) ->
 count = 0
 mongoServer = new mongo.Server mongoHost, mongoPort, {}
 collections = {}
+db_is_being_opened = false
 getCollection = (db, collection, cb=->) ->
   # the riff raff here is because
   # db.open's callback only gets called once
+  # also because only one can be 'being opened' at a time?
   mayHaveDb = -> db of collections
   gettingDb = -> collections[db].state == "getting"
   haveCollection = -> collection of collections[db].cns
@@ -66,12 +68,18 @@ getCollection = (db, collection, cb=->) ->
   getDb = -> collections[db].db
   cacheCollection = (c) -> collections[db].cns[collection] = c
   startGettingDb = ->
-    dbBig = new mongo.Db db, mongoServer, {}
-    collections[db] = {}
+    collections[db] ||= {}
     collections[db].state = "getting"
+    if db_is_being_opened
+      return wait 500, () ->
+        return startGettingDb()
+      return
+    db_is_being_opened = true
+    dbBig = new mongo.Db db, mongoServer, {}
     collections[db].db = dbBig
     collections[db].cns = {}
     dbBig.open (err, _db) ->
+      db_is_being_opened = false
       ObjectID = dbBig.bson_serializer.ObjectID
       collections[db].ObjectID = ObjectID 
       collections[db].db = _db
@@ -83,16 +91,21 @@ getCollection = (db, collection, cb=->) ->
       cacheCollection _collection
       cb err, _collection, collections[db]
   count++  
-  if mayHaveDb()
-    if gettingDb()
-      once collections[db], "gotten", startGettingCollection
-    else if haveCollection()
-      cb null, cachedCollection(), collections[db]
+  giveCollection = () ->
+    if haveCollection()
+      cb null, cachedCollection(), collections[db] 
     else
       startGettingCollection()
+  if mayHaveDb()
+    if gettingDb()
+      once collections[db], "gotten", () ->
+        giveCollection()
+    else
+      giveCollection()
   else
     startGettingDb()
     
+
 
 getCollection "office_test", "listings", (err, c) ->
   c.find().toArray (err, _docs) ->
@@ -106,11 +119,22 @@ getCollection "office_test", "listings", (err, c) ->
     log """
     separator
     """
-getCollection "office_test", "listings", (err, c) ->
+getCollection "office_test", "listings_groups", (err, c) ->
   c.find().toArray (err, _docs) ->
     #console.log _docs
     log """
-    separator
+    separator groups
+    """
+getCollection "severus_the_tl", "users", (err, users) ->
+  log "Should only be here once"
+getCollection "severus_the_tl", "user_groups", (err, users) ->
+  log "this once too"
+
+getCollection "office_test", "listings_groups", (err, c) ->
+  c.find().toArray (err, _docs) ->
+    #console.log _docs
+    log """
+    separator groups again
     """
 
 remove = (args, cb) ->
@@ -156,9 +180,15 @@ getValueMaker = (value) ->
 #TODO: maybe a dependencies table for dependent deletes
 getWriters = getValueMaker "_writers"
 getReaders = getValueMaker "_readers"
-getGroups =  (sessionId, cb) ->
+getGroups =  (sessionId, db) ->
+  log "get groups was called"
   whoami sessionId, db, (err, user) ->
     getCollection db, "user_groups", (err, userGroups) ->
+      if err
+        log "THERE WAS AN ERROR"
+        log err.message
+      else
+        log "THERE WAS NO ERROR"
       userGroups.find userId: user._id, (err, groups) ->
         cb err, [user._id, groups.groups...]
   
