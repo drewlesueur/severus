@@ -96,7 +96,10 @@
                   band.origin = "chile";
                   return save("bands", band, function(err, band) {
                     eq(!_.isNull(err), true, "error should be something");
-                    return cb();
+                    return remove("bands", band.id, function(err, band) {
+                      eq(!_.isNull(err), true, "cant remove band");
+                      return cb();
+                    });
                   });
                 });
               });

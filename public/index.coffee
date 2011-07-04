@@ -73,9 +73,9 @@ $ ->
             band.origin = "chile"
             save "bands", band, (err, band) ->
               eq not _.isNull(err), true, "error should be something"
-
-              
-              cb()
+              remove "bands", band.id, (err, band) ->
+                eq not _.isNull(err), true, "cant remove band"
+                cb()
     ], (err, results) ->
       d err
 
