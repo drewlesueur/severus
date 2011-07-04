@@ -4,6 +4,7 @@ drews = require("drews-mixins")
 mongo = require("mongodb")
 mongoHost = config.db.host
 mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT
+crypto = require "crypto"
 
 {wait, trigger, bind, once, log} = _
 
@@ -128,7 +129,7 @@ findOne = (args, cb) ->
   find args, cb
 
 find = (args, cb) ->
-  {db, collection, obj, oneOrMany, user} = args
+  {db, collection, obj, oneOrMany, sessionId} = args
   oneOrMany ||= "many"
   obj ||= {}
   getCollection db, collection, (err, _collection, extra) ->
@@ -144,13 +145,79 @@ find = (args, cb) ->
         cb err, _document
 
 save = (args, cb) ->
-  {db, collection, obj, user} = args
+  {db, collection, obj, sessionId} = args
   getCollection db, collection, (err, _collection, extra) ->
     if err then return cb err
     _collection.insert obj, (err, _objs) ->
       cb err, _objs 
 insert = save
+
+userExists = (db, username, cb) ->
+  getCollection db, "users", (err, users) ->
+    users.findOne username: username, (err, user) ->
+      if user
+        cb err, user
+      else
+        cb err, false
+
+createSession = (db, userId, cb) ->
+  getCollection db, "sessions", (err, sessions) ->
+    sessionId = _.uuid()
+    sessions.insert
+      userId: userId
+      sessionId: sessionId
+    , (err, sessions) -> cb err, sessions[0]
+deleteSession = (db, userId, cb) ->
+  getCollection cb, "sessions", (err, sessions) ->
+    sessions.remove
+      sessionId: sessionId
+    , cb
+createUser = (db, username, password, cb) ->
+  getCollection db, "users", (err, users) ->
+    users.insert
+      username: username
+      password: md5 password
+    , cb
+md5 = (data) ->
+  crypto.createHash('md5').update(data).digest("hex")
+
+authenticateUser = (db, username, password, cb) ->
+  getCollection db, "users", (err, users) ->
+    users.findOne
+      username: username
+      password: md5 password
+    , (err, user) ->
+      if user
+        cb err, user
+      else
+        cb err, false
+
+#needed once for socket connections?
+login = (db, username, password, cb) ->
+  userExists db, username, (err, user) ->
+    if user is false
+      createUser db, username, password, (err, user) ->
+        createSession db, user._id, (err, session) ->
+          cb err, _.extend user, session
+    else
+      authenticateUser db, username, password, (err, user) ->
+        createSession db, user._id, (err, session) ->
+          cb err, _.extend user, session
+
+whoami = (sessionId, db, cb) ->
+  getCollection db, "sessions", (err, sessions) ->
+    sessions.findOne sessionId: sessionId, (err, session) ->
+      log "the session is "
+      log session
+      getCollection db, "users", (err, users) ->
+        users.findOne session.userId, (err, user) ->
+          log "the user is "
+          log user
+          cb err, user
+
   
+
+
 app.get "/:db/:collection/:id", (req, res) ->
   {db, collection, id} = req.params
   find db, collection, {_id: id}, (err, _document) ->
@@ -198,21 +265,28 @@ test = (a, b..., cb) ->
   cb null, yo: "#{a} yo"
 
 rpcMethods = {
+  login
   save
   find
   findOne
   remove
   test
+  whoami
 
 }
 
 # soon add web socket rpc that goes the other way
 # or events from the server or something like that
 # credentails won't be needed for sockets huh?
+errorMaker = (error) ->
+  (args..., cb) ->
+    cb error, null
+
 pg "/rpc", (req, res) ->
   body = req.body
   {method, params, id} = body
-  rpcMethods[method] params..., (err, result) ->
+  fn = rpcMethods[method] or errorMaker("no such method #{method}")
+  fn  params..., (err, result) ->
     res.send
       result: result
       error: err

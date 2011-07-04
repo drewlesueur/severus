@@ -9,8 +9,8 @@
   eq = drews.assertEqual;
   series = nimble.series;
   $(function() {
-    var band, find, id, remove, save, tests;
-    save = severus.save, find = severus.find, remove = severus.remove;
+    var band, find, id, login, remove, save, serv, tests;
+    save = severus.save, find = severus.find, remove = severus.remove, login = severus.login, serv = severus.serv;
     band = {
       name: "Aterciopelados",
       cd: ["Caribe Atomico", "Rio"]
@@ -45,6 +45,19 @@
             age: 40
           }, function(err, results) {
             eq(results[0].age, 40, "should get age");
+            return d();
+          });
+        });
+      }, function(d) {
+        return login("drew", "passw0rd", function(err, user) {
+          var sessionId;
+          log(user);
+          sessionId = user.sessionId;
+          eq(user.username, "drew", "username should match");
+          return serv("whoami", function(err, user) {
+            eq(err, null);
+            log(err);
+            eq(user.username, "drew", "whoami should work");
             return d();
           });
         });

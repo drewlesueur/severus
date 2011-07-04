@@ -9,7 +9,7 @@ drews = require "drews-mixins"
 {series} = nimble
 $ ->
  
-  {save, find, remove} = severus
+  {save, find, remove, login, serv} = severus
   
   band =
     name: "Aterciopelados"
@@ -36,6 +36,16 @@ $ ->
   , (err, reslut) ->
     find "bands", age: 40, (err, results) ->
       eq results[0].age, 40, "should get age" 
+      d()
+
+  (d) -> login "drew", "passw0rd", (err, user) ->
+    log user
+    sessionId = user.sessionId
+    eq user.username, "drew", "username should match"
+    serv "whoami", (err, user) ->
+      eq err, null
+      log err
+      eq user.username, "drew", "whoami should work"
       d()
   ]
 

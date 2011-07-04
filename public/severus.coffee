@@ -14,6 +14,7 @@ define "severus", () ->
       [collection, obj, extra] = args
       extra ||= {}
       args =
+        sessionId: self.sessionId
         db: self.db
         collection: collection
         obj: obj 
@@ -24,7 +25,16 @@ define "severus", () ->
   find = serverCallMaker "find"
   remove = serverCallMaker "remove"
 
-  _.extend self, {save, find, remove}
+  serv = (call, args..., cb) ->
+    server call, self.sessionId, self.db, args..., cb
+
+  login = (username, password, cb) ->
+    server "login", self.db, username, password, (err, user) ->
+      self.sessionId = user.sessionId
+      self.user = user
+      cb null, user
+
+  _.extend self, {save, find, remove, login, serv}
 
 
   

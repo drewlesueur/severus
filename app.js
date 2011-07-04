@@ -1,5 +1,5 @@
 (function() {
-  var app, bind, collections, config, count, drews, drewsSignIn, enableCORS, express, find, findOne, getCollection, insert, log, mongo, mongoHost, mongoPort, mongoServer, once, pg, remove, rpcMethods, save, test, trigger, wait, _;
+  var app, authenticateUser, bind, collections, config, count, createSession, createUser, crypto, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, insert, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, once, pg, remove, rpcMethods, save, test, trigger, userExists, wait, whoami, _;
   var __slice = Array.prototype.slice;
   config = require('./config.coffee');
   _ = require("underscore");
@@ -7,6 +7,7 @@
   mongo = require("mongodb");
   mongoHost = config.db.host;
   mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT;
+  crypto = require("crypto");
   wait = _.wait, trigger = _.trigger, bind = _.bind, once = _.once, log = _.log;
   express = require('express');
   drewsSignIn = function(req, res, next) {
@@ -143,8 +144,8 @@
     return find(args, cb);
   };
   find = function(args, cb) {
-    var collection, db, obj, oneOrMany, user;
-    db = args.db, collection = args.collection, obj = args.obj, oneOrMany = args.oneOrMany, user = args.user;
+    var collection, db, obj, oneOrMany, sessionId;
+    db = args.db, collection = args.collection, obj = args.obj, oneOrMany = args.oneOrMany, sessionId = args.sessionId;
     oneOrMany || (oneOrMany = "many");
     obj || (obj = {});
     return getCollection(db, collection, function(err, _collection, extra) {
@@ -166,8 +167,8 @@
     });
   };
   save = function(args, cb) {
-    var collection, db, obj, user;
-    db = args.db, collection = args.collection, obj = args.obj, user = args.user;
+    var collection, db, obj, sessionId;
+    db = args.db, collection = args.collection, obj = args.obj, sessionId = args.sessionId;
     return getCollection(db, collection, function(err, _collection, extra) {
       if (err) {
         return cb(err);
@@ -178,6 +179,97 @@
     });
   };
   insert = save;
+  userExists = function(db, username, cb) {
+    return getCollection(db, "users", function(err, users) {
+      return users.findOne({
+        username: username
+      }, function(err, user) {
+        if (user) {
+          return cb(err, user);
+        } else {
+          return cb(err, false);
+        }
+      });
+    });
+  };
+  createSession = function(db, userId, cb) {
+    return getCollection(db, "sessions", function(err, sessions) {
+      var sessionId;
+      sessionId = _.uuid();
+      return sessions.insert({
+        userId: userId,
+        sessionId: sessionId
+      }, function(err, sessions) {
+        return cb(err, sessions[0]);
+      });
+    });
+  };
+  deleteSession = function(db, userId, cb) {
+    return getCollection(cb, "sessions", function(err, sessions) {
+      return sessions.remove({
+        sessionId: sessionId
+      }, cb);
+    });
+  };
+  createUser = function(db, username, password, cb) {
+    return getCollection(db, "users", function(err, users) {
+      return users.insert({
+        username: username,
+        password: md5(password)
+      }, cb);
+    });
+  };
+  md5 = function(data) {
+    return crypto.createHash('md5').update(data).digest("hex");
+  };
+  authenticateUser = function(db, username, password, cb) {
+    return getCollection(db, "users", function(err, users) {
+      return users.findOne({
+        username: username,
+        password: md5(password)
+      }, function(err, user) {
+        if (user) {
+          return cb(err, user);
+        } else {
+          return cb(err, false);
+        }
+      });
+    });
+  };
+  login = function(db, username, password, cb) {
+    return userExists(db, username, function(err, user) {
+      if (user === false) {
+        return createUser(db, username, password, function(err, user) {
+          return createSession(db, user._id, function(err, session) {
+            return cb(err, _.extend(user, session));
+          });
+        });
+      } else {
+        return authenticateUser(db, username, password, function(err, user) {
+          return createSession(db, user._id, function(err, session) {
+            return cb(err, _.extend(user, session));
+          });
+        });
+      }
+    });
+  };
+  whoami = function(sessionId, db, cb) {
+    return getCollection(db, "sessions", function(err, sessions) {
+      return sessions.findOne({
+        sessionId: sessionId
+      }, function(err, session) {
+        log("the session is ");
+        log(session);
+        return getCollection(db, "users", function(err, users) {
+          return users.findOne(session.userId, function(err, user) {
+            log("the user is ");
+            log(user);
+            return cb(err, user);
+          });
+        });
+      });
+    });
+  };
   app.get("/:db/:collection/:id", function(req, res) {
     var collection, db, id, _ref;
     _ref = req.params, db = _ref.db, collection = _ref.collection, id = _ref.id;
@@ -240,17 +332,27 @@
     });
   };
   rpcMethods = {
+    login: login,
     save: save,
     find: find,
     findOne: findOne,
     remove: remove,
-    test: test
+    test: test,
+    whoami: whoami
+  };
+  errorMaker = function(error) {
+    return function() {
+      var args, cb, _i;
+      args = 2 <= arguments.length ? __slice.call(arguments, 0, _i = arguments.length - 1) : (_i = 0, []), cb = arguments[_i++];
+      return cb(error, null);
+    };
   };
   pg("/rpc", function(req, res) {
-    var body, id, method, params;
+    var body, fn, id, method, params;
     body = req.body;
     method = body.method, params = body.params, id = body.id;
-    return rpcMethods[method].apply(rpcMethods, __slice.call(params).concat([function(err, result) {
+    fn = rpcMethods[method] || errorMaker("no such method " + method);
+    return fn.apply(null, __slice.call(params).concat([function(err, result) {
       return res.send({
         result: result,
         error: err,
