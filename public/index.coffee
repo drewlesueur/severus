@@ -9,7 +9,7 @@ drews = require "drews-mixins"
 {series} = nimble
 $ ->
  
-  {save, find, remove, login, serv} = severus
+  {save, find, remove, login, serv, server} = severus
   
   band =
     name: "Aterciopelados"
@@ -17,9 +17,13 @@ $ ->
 
   id = null
   tests = [ (d)->d()
-  
+  (d) -> server "clearTests", (err) ->
+    log "testes cleared"
+    d err
   (d) -> remove "bands", (err, result) ->
     find "bands", (err, results) ->
+      log "the removed results are"
+      log results
       eq results.length, 0, "removing should give us no results"
       save "bands", band, (err, result) ->
         eq result.name, "Aterciopelados"

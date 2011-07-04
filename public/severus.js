@@ -49,7 +49,8 @@
       find: find,
       remove: remove,
       login: login,
-      serv: serv
+      serv: serv,
+      server: server
     });
   });
 }).call(this);

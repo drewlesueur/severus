@@ -1,5 +1,5 @@
 (function() {
-  var app, authenticateUser, bind, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaderWriterMaker, getReaders, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
+  var app, authenticateUser, bind, clearTests, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaderWriterMaker, getReaders, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, removeCollection, removeCollectionMaker, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
   var __slice = Array.prototype.slice, __indexOf = Array.prototype.indexOf || function(item) {
     for (var i = 0, l = this.length; i < l; i++) {
       if (this[i] === item) return i;
@@ -205,18 +205,24 @@
     });
   });
   remove = function(args, cb) {
-    var collection, db, obj, user;
-    db = args.db, collection = args.collection, obj = args.obj, user = args.user;
+    var collection, db, obj, sessionId, user;
+    log("removing");
+    db = args.db, collection = args.collection, obj = args.obj, user = args.user, sessionId = args.sessionId;
     obj || (obj = {});
-    return getCollection(db, collection, function(err, _collection, extra) {
-      if (err) {
-        return cb(err);
-      }
-      if (_.isString(obj)) {
-        obj = collections[db].ObjectID.createFromHexString(obj);
-      }
-      return _collection.remove(obj, function(err, theArray) {
-        return cb(err, theArray);
+    return getGroups(sessionId, db, function(err, groups) {
+      obj._writers = {
+        "$in": groups
+      };
+      return getCollection(db, collection, function(err, _collection, extra) {
+        if (err) {
+          return cb(err);
+        }
+        if (_.isString(obj)) {
+          obj = collections[db].ObjectID.createFromHexString(obj);
+        }
+        return _collection.remove(obj, function(err, theArray) {
+          return cb(err, theArray);
+        });
       });
     });
   };
@@ -229,22 +235,27 @@
     db = args.db, collection = args.collection, obj = args.obj, oneOrMany = args.oneOrMany, sessionId = args.sessionId;
     oneOrMany || (oneOrMany = "many");
     obj || (obj = {});
-    return getCollection(db, collection, function(err, _collection, extra) {
-      if (err) {
-        return cb(err);
-      }
-      if (_.isString(obj)) {
-        obj = collections[db].ObjectID.createFromHexString(obj);
-      }
-      if (oneOrMany === "many") {
-        return _collection.find(obj).toArray(function(err, theArray) {
-          return cb(err, theArray);
-        });
-      } else {
-        return _collection.findOne(obj, function(err, _document) {
-          return cb(err, _document);
-        });
-      }
+    return getGroups(sessionId, db, function(err, groups) {
+      obj._readers = {
+        "$in": groups
+      };
+      return getCollection(db, collection, function(err, _collection, extra) {
+        if (err) {
+          return cb(err);
+        }
+        if (_.isString(obj)) {
+          obj = collections[db].ObjectID.createFromHexString(obj);
+        }
+        if (oneOrMany === "many") {
+          return _collection.find(obj).toArray(function(err, theArray) {
+            return cb(err, theArray);
+          });
+        } else {
+          return _collection.findOne(obj, function(err, _document) {
+            return cb(err, _document);
+          });
+        }
+      });
     });
   };
   getReaderWriterMaker = function(value) {
@@ -287,6 +298,7 @@
       debug = true;
       log(obj);
     }
+    debug = true;
     isNew = true;
     if ("_id" in obj) {
       isNew = false;
@@ -298,12 +310,18 @@
         if (!("_writers" in obj)) {
           obj._writers = [groups[0]];
         }
-        if (!("_readers" in obj)) {
-          obj._readers = ["public"];
+      }
+      if (isNew && !sessionId) {
+        if (!("_writers" in obj)) {
+          obj._writers = ["public"];
         }
+      }
+      if (!("_readers" in obj)) {
+        obj._readers = ["public"];
       }
       if (debug) {
         log("doing the saving");
+        log(obj);
       }
       return getCollection(db, collection, function(err, _collection, extra) {
         if (err) {
@@ -515,6 +533,27 @@
       yo: "" + a + " yo"
     });
   };
+  removeCollectionMaker = function(db, collection) {
+    return function(cb) {
+      return removeCollection(db, collection, function(err) {
+        return cb();
+      });
+    };
+  };
+  removeCollection = function(db, collection, cb) {
+    return getCollection(db, collection, function(err, _coll) {
+      return _coll.remove(function(err) {
+        return cb(err);
+      });
+    });
+  };
+  clearTests = function(cb) {
+    var db;
+    db = "severus_drewl_us";
+    return parallel([removeCollectionMaker(db, "users"), removeCollectionMaker(db, "user_groups"), removeCollectionMaker(db, "bands")], function(err) {
+      return cb(err, "test collecitons cleared");
+    });
+  };
   rpcMethods = {
     login: login,
     save: save,
@@ -522,7 +561,8 @@
     findOne: findOne,
     remove: remove,
     test: test,
-    whoami: whoami
+    whoami: whoami,
+    clearTests: clearTests
   };
   errorMaker = function(error) {
     return function() {

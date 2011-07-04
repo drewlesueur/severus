@@ -164,15 +164,18 @@ wait 5000, ->
 
 
 remove = (args, cb) ->
-  {db, collection, obj, user} = args
+  log "removing"
+  {db, collection, obj, user, sessionId} = args
   obj ||= {}
-  getCollection db, collection, (err, _collection, extra) ->
-    if err then return cb err
-    if _.isString obj 
-      obj = collections[db].ObjectID.createFromHexString(obj) 
-      # obj is now the id
-    _collection.remove obj, (err, theArray) ->
-      cb err, theArray
+  getGroups sessionId, db, (err, groups) ->
+    obj._writers = {"$in": groups}
+    getCollection db, collection, (err, _collection, extra) ->
+      if err then return cb err
+      if _.isString obj 
+        obj = collections[db].ObjectID.createFromHexString(obj) 
+        # obj is now the id
+      _collection.remove obj, (err, theArray) ->
+        cb err, theArray
  
 
 findOne = (args, cb) ->
@@ -183,17 +186,19 @@ find = (args, cb) ->
   {db, collection, obj, oneOrMany, sessionId} = args
   oneOrMany ||= "many"
   obj ||= {}
-  getCollection db, collection, (err, _collection, extra) ->
-    if err then return cb err
-    if _.isString obj
-      obj = collections[db].ObjectID.createFromHexString(obj) 
-      # obj is now the id
-    if oneOrMany == "many"
-      _collection.find(obj).toArray (err, theArray) ->
-        cb err, theArray
-    else
-      _collection.findOne obj, (err, _document) ->
-        cb err, _document
+  getGroups sessionId, db, (err, groups) ->
+    obj._readers = {"$in": groups}
+    getCollection db, collection, (err, _collection, extra) ->
+      if err then return cb err
+      if _.isString obj
+        obj = collections[db].ObjectID.createFromHexString(obj) 
+        # obj is now the id
+      if oneOrMany == "many"
+        _collection.find(obj).toArray (err, theArray) ->
+          cb err, theArray
+      else
+        _collection.findOne obj, (err, _document) ->
+          cb err, _document
 
 getReaderWriterMaker = (value) ->
   (db, collection, _id, cb) ->
@@ -223,6 +228,7 @@ save = (args, cb) ->
   if obj.name.match /Javiera/i
     debug = true
     log obj
+  debug = true
   isNew = true
   if "_id" of obj
     isNew = false
@@ -232,10 +238,15 @@ save = (args, cb) ->
     if isNew and sessionId
       if "_writers" not of obj
         obj._writers = [groups[0]] #default only you can edit
-      if "_readers" not of obj
-        obj._readers = ["public"] #default all can see
+    if isNew and not sessionId
+      if "_writers" not of obj
+        obj._writers = ["public"] #anyone can edit
+    if "_readers" not of obj
+      obj._readers = ["public"] #default all can see
+      
     if debug
       log "doing the saving"
+      log obj
     getCollection db, collection, (err, _collection, extra) ->
       if err then return cb err
       _collection.save obj, (err, _obj) ->
@@ -392,6 +403,28 @@ pg "/whoami", (req, res) ->
 test = (a, b..., cb) ->
   cb null, yo: "#{a} yo"
 
+removeCollectionMaker = (db, collection) ->
+  (cb) ->
+    removeCollection db, collection, (err) ->
+      cb()
+  
+removeCollection = (db, collection, cb) ->
+  getCollection db, collection, (err, _coll) ->
+    _coll.remove (err) ->
+      cb err  
+
+    
+
+clearTests = (cb) ->
+  db = "severus_drewl_us"
+  parallel [
+    removeCollectionMaker db, "users"
+    removeCollectionMaker db, "user_groups"
+    removeCollectionMaker db, "bands"
+  ], (err) ->
+    cb err, "test collecitons cleared"
+
+  
 rpcMethods = {
   login
   save
@@ -400,6 +433,7 @@ rpcMethods = {
   remove
   test
   whoami
+  clearTests
 
 }
 

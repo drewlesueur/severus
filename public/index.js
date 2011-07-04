@@ -9,8 +9,8 @@
   eq = drews.assertEqual;
   series = nimble.series;
   $(function() {
-    var band, find, id, login, remove, save, serv, tests;
-    save = severus.save, find = severus.find, remove = severus.remove, login = severus.login, serv = severus.serv;
+    var band, find, id, login, remove, save, serv, server, tests;
+    save = severus.save, find = severus.find, remove = severus.remove, login = severus.login, serv = severus.serv, server = severus.server;
     band = {
       name: "Aterciopelados",
       cd: ["Caribe Atomico", "Rio"]
@@ -20,8 +20,15 @@
       function(d) {
         return d();
       }, function(d) {
+        return server("clearTests", function(err) {
+          log("testes cleared");
+          return d(err);
+        });
+      }, function(d) {
         return remove("bands", function(err, result) {
           return find("bands", function(err, results) {
+            log("the removed results are");
+            log(results);
             eq(results.length, 0, "removing should give us no results");
             return save("bands", band, function(err, result) {
               eq(result.name, "Aterciopelados");

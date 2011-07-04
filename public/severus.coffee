@@ -36,7 +36,7 @@ define "severus", () ->
       self.user = user
       cb null, user
 
-  _.extend self, {save, find, remove, login, serv}
+  _.extend self, {save, find, remove, login, serv, server}
 
 
   
