@@ -195,22 +195,28 @@ find = (args, cb) ->
       _collection.findOne obj, (err, _document) ->
         cb err, _document
 
-getValueMaker = (value) ->
+getReaderWriterMaker = (value) ->
   (db, collection, _id, cb) ->
-    getCollection db, collection, (err, _collection, extra) ->
-      if _.isString _id
-        _id = collections[db].ObjectID.createFromHexString(_id) 
-      _collection.findOne _id, (err, obj) ->
-        #TODO: only get the writers here
-        cb err, obj[value]
+    if not _id
+      cb null, ["public"]
+    else
+      getCollection db, collection, (err, _collection, extra) ->
+        if _.isString _id
+          _id = collections[db].ObjectID.createFromHexString(_id) 
+        _collection.findOne _id, (err, obj) ->
+          #TODO: only get the writers here
+          cb err, obj[value]
 #TODO: maybe a dependencies table for dependent deletes
-getWriters = getValueMaker "_writers"
-getReaders = getValueMaker "_readers"
+getWriters = getReaderWriterMaker "_writers"
+getReaders = getReaderWriterMaker "_readers"
 getGroups =  (sessionId, db, cb) ->
-  whoami sessionId, db, (err, user) ->
-    getCollection db, "user_groups", (err, userGroups) ->
-      userGroups.findOne userId: user._id, (err, groups) ->
-        cb err, [user._id, groups.groups...]
+  if sessionId
+    whoami sessionId, db, (err, user) ->
+      getCollection db, "user_groups", (err, userGroups) ->
+        userGroups.findOne userId: user._id, (err, groups) ->
+          cb err, [user._id, groups.groups...]
+  else
+    cb null, ['public']
   
 save = (args, cb) ->
   {db, collection, obj, sessionId} = args
@@ -221,34 +227,23 @@ save = (args, cb) ->
   if "_id" of obj
     isNew = false
     obj._id = collections[db].ObjectID.createFromHexString(obj._id) 
+  groups = null
   doTheSaving = () ->
+    if isNew and sessionId
+      if "_writers" not of obj
+        obj._writers = [groups[0]] #default only you can edit
+      if "_readers" not of obj
+        obj._readers = ["public"] #default all can see
     if debug
       log "doing the saving"
     getCollection db, collection, (err, _collection, extra) ->
       if err then return cb err
       _collection.save obj, (err, _obj) ->
         cb err, _obj 
-
-  doGetWriters = (cb) ->
-    if not isNew
-      getWriters db, collection, obj._id, cb
-    else
-      cb null, ["public"]
       
-  doGetGroups = (cb) ->
-    if sessionId
-      getGroups sessionId, db, (err, groups) ->
-        if isNew
-          if "_writers" not of obj
-            obj._writers = [groups[0]] #default only you can edit
-          if "_readers" not of obj
-            obj._readers = ["public"] #default all can see
-        cb err, groups
-    else
-      cb null, ["public"]
   parallel [
-    doGetWriters
-    doGetGroups
+    (cb) -> getWriters db, collection, obj._id, cb
+    (cb) -> getGroups sessionId, db, cb
   ], (err, results) ->
     if debug
       log "the results are"

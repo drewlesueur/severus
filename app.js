@@ -1,5 +1,5 @@
 (function() {
-  var app, authenticateUser, bind, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaders, getValueMaker, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
+  var app, authenticateUser, bind, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaderWriterMaker, getReaders, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
   var __slice = Array.prototype.slice, __indexOf = Array.prototype.indexOf || function(item) {
     for (var i = 0, l = this.length; i < l; i++) {
       if (this[i] === item) return i;
@@ -247,33 +247,41 @@
       }
     });
   };
-  getValueMaker = function(value) {
+  getReaderWriterMaker = function(value) {
     return function(db, collection, _id, cb) {
-      return getCollection(db, collection, function(err, _collection, extra) {
-        if (_.isString(_id)) {
-          _id = collections[db].ObjectID.createFromHexString(_id);
-        }
-        return _collection.findOne(_id, function(err, obj) {
-          return cb(err, obj[value]);
+      if (!_id) {
+        return cb(null, ["public"]);
+      } else {
+        return getCollection(db, collection, function(err, _collection, extra) {
+          if (_.isString(_id)) {
+            _id = collections[db].ObjectID.createFromHexString(_id);
+          }
+          return _collection.findOne(_id, function(err, obj) {
+            return cb(err, obj[value]);
+          });
         });
-      });
+      }
     };
   };
-  getWriters = getValueMaker("_writers");
-  getReaders = getValueMaker("_readers");
+  getWriters = getReaderWriterMaker("_writers");
+  getReaders = getReaderWriterMaker("_readers");
   getGroups = function(sessionId, db, cb) {
-    return whoami(sessionId, db, function(err, user) {
-      return getCollection(db, "user_groups", function(err, userGroups) {
-        return userGroups.findOne({
-          userId: user._id
-        }, function(err, groups) {
-          return cb(err, [user._id].concat(__slice.call(groups.groups)));
+    if (sessionId) {
+      return whoami(sessionId, db, function(err, user) {
+        return getCollection(db, "user_groups", function(err, userGroups) {
+          return userGroups.findOne({
+            userId: user._id
+          }, function(err, groups) {
+            return cb(err, [user._id].concat(__slice.call(groups.groups)));
+          });
         });
       });
-    });
+    } else {
+      return cb(null, ['public']);
+    }
   };
   save = function(args, cb) {
-    var collection, db, debug, doGetGroups, doGetWriters, doTheSaving, isNew, obj, sessionId;
+    var collection, db, debug, doTheSaving, groups, isNew, obj, sessionId;
     db = args.db, collection = args.collection, obj = args.obj, sessionId = args.sessionId;
     if (obj.name.match(/Javiera/i)) {
       debug = true;
@@ -284,7 +292,16 @@
       isNew = false;
       obj._id = collections[db].ObjectID.createFromHexString(obj._id);
     }
+    groups = null;
     doTheSaving = function() {
+      if (isNew && sessionId) {
+        if (!("_writers" in obj)) {
+          obj._writers = [groups[0]];
+        }
+        if (!("_readers" in obj)) {
+          obj._readers = ["public"];
+        }
+      }
       if (debug) {
         log("doing the saving");
       }
@@ -297,32 +314,14 @@
         });
       });
     };
-    doGetWriters = function(cb) {
-      if (!isNew) {
+    return parallel([
+      function(cb) {
         return getWriters(db, collection, obj._id, cb);
-      } else {
-        return cb(null, ["public"]);
+      }, function(cb) {
+        return getGroups(sessionId, db, cb);
       }
-    };
-    doGetGroups = function(cb) {
-      if (sessionId) {
-        return getGroups(sessionId, db, function(err, groups) {
-          if (isNew) {
-            if (!("_writers" in obj)) {
-              obj._writers = [groups[0]];
-            }
-            if (!("_readers" in obj)) {
-              obj._readers = ["public"];
-            }
-          }
-          return cb(err, groups);
-        });
-      } else {
-        return cb(null, ["public"]);
-      }
-    };
-    return parallel([doGetWriters, doGetGroups], function(err, results) {
-      var found, groupId, groups, writers, _i, _len;
+    ], function(err, results) {
+      var found, groupId, writers, _i, _len;
       if (debug) {
         log("the results are");
         log(results);
