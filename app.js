@@ -132,7 +132,7 @@
         return cb(err);
       }
       if (_.isString(obj)) {
-        obj = extra.ObjectID.createFromHexString(obj);
+        obj = collections[db].ObjectID.createFromHexString(obj);
       }
       return _collection.remove(obj, function(err, theArray) {
         return cb(err, theArray);
@@ -153,7 +153,7 @@
         return cb(err);
       }
       if (_.isString(obj)) {
-        obj = extra.ObjectID.createFromHexString(obj);
+        obj = collections[db].ObjectID.createFromHexString(obj);
       }
       if (oneOrMany === "many") {
         return _collection.find(obj).toArray(function(err, theArray) {
@@ -169,6 +169,9 @@
   save = function(args, cb) {
     var collection, db, obj, sessionId;
     db = args.db, collection = args.collection, obj = args.obj, sessionId = args.sessionId;
+    if ("_id" in obj) {
+      obj._id = collections[db].ObjectID.createFromHexString(obj._id);
+    }
     return getCollection(db, collection, function(err, _collection, extra) {
       if (err) {
         return cb(err);
@@ -258,12 +261,8 @@
       return sessions.findOne({
         sessionId: sessionId
       }, function(err, session) {
-        log("the session is ");
-        log(session);
         return getCollection(db, "users", function(err, users) {
           return users.findOne(session.userId, function(err, user) {
-            log("the user is ");
-            log(user);
             return cb(err, user);
           });
         });
@@ -306,7 +305,7 @@
     _ref = req.params, db = _ref.db, collection = _ref.collection, id = _ref.id;
     return getCollection(db, collection, function(err, _collection, extra) {
       var _id;
-      _id = ObjectID.createFromHexString(id);
+      _id = collections[db].ObjectID.createFromHexString(id);
       return _collection.remove({
         _id: _id
       }, function(err) {

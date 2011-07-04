@@ -118,7 +118,7 @@ remove = (args, cb) ->
   getCollection db, collection, (err, _collection, extra) ->
     if err then return cb err
     if _.isString obj 
-      obj = extra.ObjectID.createFromHexString(obj) 
+      obj = collections[db].ObjectID.createFromHexString(obj) 
       # obj is now the id
     _collection.remove obj, (err, theArray) ->
       cb err, theArray
@@ -135,7 +135,7 @@ find = (args, cb) ->
   getCollection db, collection, (err, _collection, extra) ->
     if err then return cb err
     if _.isString obj
-      obj = extra.ObjectID.createFromHexString(obj) 
+      obj = collections[db].ObjectID.createFromHexString(obj) 
       # obj is now the id
     if oneOrMany == "many"
       _collection.find(obj).toArray (err, theArray) ->
@@ -146,6 +146,8 @@ find = (args, cb) ->
 
 save = (args, cb) ->
   {db, collection, obj, sessionId} = args
+  if "_id" of obj
+    obj._id = collections[db].ObjectID.createFromHexString(obj._id) 
   getCollection db, collection, (err, _collection, extra) ->
     if err then return cb err
     _collection.insert obj, (err, _objs) ->
@@ -207,12 +209,8 @@ login = (db, username, password, cb) ->
 whoami = (sessionId, db, cb) ->
   getCollection db, "sessions", (err, sessions) ->
     sessions.findOne sessionId: sessionId, (err, session) ->
-      log "the session is "
-      log session
       getCollection db, "users", (err, users) ->
         users.findOne session.userId, (err, user) ->
-          log "the user is "
-          log user
           cb err, user
 
   
@@ -242,7 +240,7 @@ app.post "/:db/:collection", (req, res) ->
 false and app.delete "/:db/:collection/:id", (req, res) ->
   {db, collection, id} = req.params
   getCollection db, collection, (err, _collection, extra) ->
-    _id = ObjectID.createFromHexString(id) 
+    _id = collections[db].ObjectID.createFromHexString(id) 
     _collection.remove _id: _id, (err) ->
       res.send {}
 

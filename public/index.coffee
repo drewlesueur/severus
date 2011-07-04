@@ -38,6 +38,18 @@ $ ->
       eq results[0].age, 40, "should get age" 
       d()
 
+
+  (d) -> remove "bands", (err) ->
+    band = name: "choc quib town", albums: ["oro"]
+    save "bands", band, (err, bands) ->
+      band = bands[0]
+      band.members = ["goyo", "tostao", "slow"]
+      save "bands", band, (err) ->
+        find "bands", (err, bands) ->
+          eq bands.length, 1, "saving should overwrite"
+          d()
+
+
   (d) -> login "drew", "passw0rd", (err, user) ->
     log user
     sessionId = user.sessionId

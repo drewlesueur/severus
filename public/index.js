@@ -49,6 +49,23 @@
           });
         });
       }, function(d) {
+        return remove("bands", function(err) {
+          band = {
+            name: "choc quib town",
+            albums: ["oro"]
+          };
+          return save("bands", band, function(err, bands) {
+            band = bands[0];
+            band.members = ["goyo", "tostao", "slow"];
+            return save("bands", band, function(err) {
+              return find("bands", function(err, bands) {
+                eq(bands.length, 1, "saving should overwrite");
+                return d();
+              });
+            });
+          });
+        });
+      }, function(d) {
         return login("drew", "passw0rd", function(err, user) {
           var sessionId;
           log(user);
