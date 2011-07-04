@@ -85,10 +85,18 @@
               return save("bands", band, function(err, band) {
                 eq(band.name, "Javiera Mena", "name should equal");
                 eq(band._writers, id, "only I can write");
-                return log(band);
+                return login("hector", "passw0rd", function(err, user) {
+                  band.origin = "chile";
+                  return save("bands", band, function(err, band) {
+                    eq(!_.isNull(err), true, "error should be something");
+                    return cb();
+                  });
+                });
               });
             }
-          ]);
+          ], function(err, results) {
+            return d(err);
+          });
         });
       }
     ];

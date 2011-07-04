@@ -57,7 +57,9 @@ count = 0
 mongoServer = new mongo.Server mongoHost, mongoPort, {}
 collections = {}
 db_is_being_opened = false
-getCollection = (db, collection, cb=->) ->
+getCollection = (args...,  cb=->) ->
+  [db, collection, debug] = args
+  
   # the riff raff here is because
   # db.open's callback only gets called once
   # also because only one can be 'being opened' at a time?
@@ -68,6 +70,7 @@ getCollection = (db, collection, cb=->) ->
   getDb = -> collections[db].db
   cacheCollection = (c) -> collections[db].cns[collection] = c
   startGettingDb = ->
+    if debug then log "starting to get db #{db}"
     collections[db] ||= {}
     collections[db].state = "getting"
     if db_is_being_opened
@@ -87,22 +90,30 @@ getCollection = (db, collection, cb=->) ->
       trigger collections[db], "gotten"
       startGettingCollection()
   startGettingCollection = ->
+    if debug then log "starting to get collection #{collection}"
     getDb().collection collection, (err, _collection) ->
+      if debug then log "got collection #{collection}"
       cacheCollection _collection
       cb err, _collection, collections[db]
   count++  
   giveCollection = () ->
     if haveCollection()
+      if debug then log "giving colleciton #{collection}"
       cb null, cachedCollection(), collections[db] 
     else
+      if debug then log "you don't have collection #{collection}, start getting it"
       startGettingCollection()
   if mayHaveDb()
     if gettingDb()
+      if debug then log "you are getting db #{db}"
       once collections[db], "gotten", () ->
+        if debug then log "got db now start with colleciton #{collection}"
         giveCollection()
     else
+      if debug then log "you have db #{db}. now get and give the collection"
       giveCollection()
   else
+    if debug then log "you don't have db, #{db}, start getting it"
     startGettingDb()
     
 
@@ -136,6 +147,21 @@ getCollection "office_test", "listings_groups", (err, c) ->
     log """
     separator groups again
     """
+
+wait 5000, ->
+  get1 = (cb) ->
+    getCollection "severus_the_tl", "users", (err, users) ->
+      log "got users parallel"
+      cb null, "the users"
+  get2 = (cb) ->
+    getCollection "severus_the_tl", "user_groups", (err, users) ->
+      log "got usergroups parallel "
+      cb null, "the groups"
+  parallel [get1, get2], (err, results) ->
+    log results 
+
+
+
 
 remove = (args, cb) ->
   {db, collection, obj, user} = args
@@ -180,25 +206,24 @@ getValueMaker = (value) ->
 #TODO: maybe a dependencies table for dependent deletes
 getWriters = getValueMaker "_writers"
 getReaders = getValueMaker "_readers"
-getGroups =  (sessionId, db) ->
-  log "get groups was called"
+getGroups =  (sessionId, db, cb) ->
   whoami sessionId, db, (err, user) ->
     getCollection db, "user_groups", (err, userGroups) ->
-      if err
-        log "THERE WAS AN ERROR"
-        log err.message
-      else
-        log "THERE WAS NO ERROR"
-      userGroups.find userId: user._id, (err, groups) ->
+      userGroups.findOne userId: user._id, (err, groups) ->
         cb err, [user._id, groups.groups...]
   
 save = (args, cb) ->
   {db, collection, obj, sessionId} = args
+  if obj.name.match /Javiera/i
+    debug = true
+    log obj
   isNew = true
   if "_id" of obj
     isNew = false
     obj._id = collections[db].ObjectID.createFromHexString(obj._id) 
   doTheSaving = () ->
+    if debug
+      log "doing the saving"
     getCollection db, collection, (err, _collection, extra) ->
       if err then return cb err
       _collection.save obj, (err, _obj) ->
@@ -225,6 +250,9 @@ save = (args, cb) ->
     doGetWriters
     doGetGroups
   ], (err, results) ->
+    if debug
+      log "the results are"
+      log results
     [writers, groups] = results
     found = false
     for groupId in groups
@@ -272,15 +300,15 @@ createUser = (db, username, password, cb) ->
         username: username
         password: md5 password
       , (err, user) ->
-        d user
-  saveUserGroups = (d) ->
+        d null, user
+  saveUserGroups = (user, d) ->
     getCollection db, "user_groups", (err, userGroups) ->
       userGroups.save
         userId: user._id
-        groups: []
+        groups: ["public"]
       , (err, group) ->
         d group
-  parallel [saveUser, saveUserGroups], (err, [user, groups]) ->
+  series [saveUser, saveUserGroups], (err, [user, groups]) ->
     cb err, user
     
     
@@ -304,6 +332,8 @@ login = (db, username, password, cb) ->
   userExists db, username, (err, user) ->
     if user is false
       createUser db, username, password, (err, user) ->
+        log "user created"
+        log user
         createSession db, user._id, (err, session) ->
           cb err, _.extend user, session
     else

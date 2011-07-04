@@ -65,8 +65,15 @@ $ ->
         save "bands", band, (err, band) ->
           eq band.name, "Javiera Mena", "name should equal"
           eq band._writers, id, "only I can write"
-          log band
-    ]
+          login "hector", "passw0rd", (err, user) ->
+            band.origin = "chile"
+            save "bands", band, (err, band) ->
+              eq not _.isNull(err), true, "error should be something"
+
+              
+              cb()
+    ], (err, results) ->
+      d err
 
   ] # end tests
 

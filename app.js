@@ -57,11 +57,13 @@
   mongoServer = new mongo.Server(mongoHost, mongoPort, {});
   collections = {};
   db_is_being_opened = false;
-  getCollection = function(db, collection, cb) {
-    var cacheCollection, cachedCollection, getDb, gettingDb, giveCollection, haveCollection, mayHaveDb, startGettingCollection, startGettingDb;
+  getCollection = function() {
+    var args, cacheCollection, cachedCollection, cb, collection, db, debug, getDb, gettingDb, giveCollection, haveCollection, mayHaveDb, startGettingCollection, startGettingDb, _i;
+    args = 2 <= arguments.length ? __slice.call(arguments, 0, _i = arguments.length - 1) : (_i = 0, []), cb = arguments[_i++];
     if (cb == null) {
       cb = function() {};
     }
+    db = args[0], collection = args[1], debug = args[2];
     mayHaveDb = function() {
       return db in collections;
     };
@@ -82,6 +84,9 @@
     };
     startGettingDb = function() {
       var dbBig;
+      if (debug) {
+        log("starting to get db " + db);
+      }
       collections[db] || (collections[db] = {});
       collections[db].state = "getting";
       if (db_is_being_opened) {
@@ -106,7 +111,13 @@
       });
     };
     startGettingCollection = function() {
+      if (debug) {
+        log("starting to get collection " + collection);
+      }
       return getDb().collection(collection, function(err, _collection) {
+        if (debug) {
+          log("got collection " + collection);
+        }
         cacheCollection(_collection);
         return cb(err, _collection, collections[db]);
       });
@@ -114,20 +125,38 @@
     count++;
     giveCollection = function() {
       if (haveCollection()) {
+        if (debug) {
+          log("giving colleciton " + collection);
+        }
         return cb(null, cachedCollection(), collections[db]);
       } else {
+        if (debug) {
+          log("you don't have collection " + collection + ", start getting it");
+        }
         return startGettingCollection();
       }
     };
     if (mayHaveDb()) {
       if (gettingDb()) {
+        if (debug) {
+          log("you are getting db " + db);
+        }
         return once(collections[db], "gotten", function() {
+          if (debug) {
+            log("got db now start with colleciton " + collection);
+          }
           return giveCollection();
         });
       } else {
+        if (debug) {
+          log("you have db " + db + ". now get and give the collection");
+        }
         return giveCollection();
       }
     } else {
+      if (debug) {
+        log("you don't have db, " + db + ", start getting it");
+      }
       return startGettingDb();
     }
   };
@@ -155,6 +184,24 @@
   getCollection("office_test", "listings_groups", function(err, c) {
     return c.find().toArray(function(err, _docs) {
       return log("separator groups again");
+    });
+  });
+  wait(5000, function() {
+    var get1, get2;
+    get1 = function(cb) {
+      return getCollection("severus_the_tl", "users", function(err, users) {
+        log("got users parallel");
+        return cb(null, "the users");
+      });
+    };
+    get2 = function(cb) {
+      return getCollection("severus_the_tl", "user_groups", function(err, users) {
+        log("got usergroups parallel ");
+        return cb(null, "the groups");
+      });
+    };
+    return parallel([get1, get2], function(err, results) {
+      return log(results);
     });
   });
   remove = function(args, cb) {
@@ -214,17 +261,10 @@
   };
   getWriters = getValueMaker("_writers");
   getReaders = getValueMaker("_readers");
-  getGroups = function(sessionId, db) {
-    log("get groups was called");
+  getGroups = function(sessionId, db, cb) {
     return whoami(sessionId, db, function(err, user) {
       return getCollection(db, "user_groups", function(err, userGroups) {
-        if (err) {
-          log("THERE WAS AN ERROR");
-          log(err.message);
-        } else {
-          log("THERE WAS NO ERROR");
-        }
-        return userGroups.find({
+        return userGroups.findOne({
           userId: user._id
         }, function(err, groups) {
           return cb(err, [user._id].concat(__slice.call(groups.groups)));
@@ -233,14 +273,21 @@
     });
   };
   save = function(args, cb) {
-    var collection, db, doGetGroups, doGetWriters, doTheSaving, isNew, obj, sessionId;
+    var collection, db, debug, doGetGroups, doGetWriters, doTheSaving, isNew, obj, sessionId;
     db = args.db, collection = args.collection, obj = args.obj, sessionId = args.sessionId;
+    if (obj.name.match(/Javiera/i)) {
+      debug = true;
+      log(obj);
+    }
     isNew = true;
     if ("_id" in obj) {
       isNew = false;
       obj._id = collections[db].ObjectID.createFromHexString(obj._id);
     }
     doTheSaving = function() {
+      if (debug) {
+        log("doing the saving");
+      }
       return getCollection(db, collection, function(err, _collection, extra) {
         if (err) {
           return cb(err);
@@ -276,6 +323,10 @@
     };
     return parallel([doGetWriters, doGetGroups], function(err, results) {
       var found, groupId, groups, writers, _i, _len;
+      if (debug) {
+        log("the results are");
+        log(results);
+      }
       writers = results[0], groups = results[1];
       found = false;
       for (_i = 0, _len = groups.length; _i < _len; _i++) {
@@ -335,21 +386,21 @@
           username: username,
           password: md5(password)
         }, function(err, user) {
-          return d(user);
+          return d(null, user);
         });
       });
     };
-    saveUserGroups = function(d) {
+    saveUserGroups = function(user, d) {
       return getCollection(db, "user_groups", function(err, userGroups) {
         return userGroups.save({
           userId: user._id,
-          groups: []
+          groups: ["public"]
         }, function(err, group) {
           return d(group);
         });
       });
     };
-    return parallel([saveUser, saveUserGroups], function(err, _arg) {
+    return series([saveUser, saveUserGroups], function(err, _arg) {
       var groups, user;
       user = _arg[0], groups = _arg[1];
       return cb(err, user);
@@ -376,6 +427,8 @@
     return userExists(db, username, function(err, user) {
       if (user === false) {
         return createUser(db, username, password, function(err, user) {
+          log("user created");
+          log(user);
           return createSession(db, user._id, function(err, session) {
             return cb(err, _.extend(user, session));
           });
