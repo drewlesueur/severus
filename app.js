@@ -205,9 +205,14 @@
     });
   });
   remove = function(args, cb) {
-    var collection, db, obj, sessionId, user;
+    var collection, db, obj, sessionId, user, _id;
     log("removing");
     db = args.db, collection = args.collection, obj = args.obj, user = args.user, sessionId = args.sessionId;
+    if (_.isString(obj)) {
+      _id = obj;
+      obj = {};
+      obj._id = collections[db].ObjectID.createFromHexString(_id);
+    }
     obj || (obj = {});
     return getGroups(sessionId, db, function(err, groups) {
       obj._writers = {
@@ -216,9 +221,6 @@
       return getCollection(db, collection, function(err, _collection, extra) {
         if (err) {
           return cb(err);
-        }
-        if (_.isString(obj)) {
-          obj = collections[db].ObjectID.createFromHexString(obj);
         }
         return _collection.remove(obj, function(err, theArray) {
           return cb(err, theArray);
@@ -231,9 +233,14 @@
     return find(args, cb);
   };
   find = function(args, cb) {
-    var collection, db, obj, oneOrMany, sessionId;
+    var collection, db, obj, oneOrMany, sessionId, _id;
     db = args.db, collection = args.collection, obj = args.obj, oneOrMany = args.oneOrMany, sessionId = args.sessionId;
     oneOrMany || (oneOrMany = "many");
+    if (_.isString(obj)) {
+      _id = obj;
+      obj = {};
+      obj._id = collections[db].ObjectID.createFromHexString(_id);
+    }
     obj || (obj = {});
     return getGroups(sessionId, db, function(err, groups) {
       obj._readers = {

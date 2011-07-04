@@ -166,13 +166,15 @@ wait 5000, ->
 remove = (args, cb) ->
   log "removing"
   {db, collection, obj, user, sessionId} = args
+  if _.isString obj 
+    _id = obj
+    obj = {}
+    obj._id = collections[db].ObjectID.createFromHexString(_id) 
   obj ||= {}
   getGroups sessionId, db, (err, groups) ->
     obj._writers = {"$in": groups}
     getCollection db, collection, (err, _collection, extra) ->
       if err then return cb err
-      if _.isString obj 
-        obj = collections[db].ObjectID.createFromHexString(obj) 
         # obj is now the id
       _collection.remove obj, (err, theArray) ->
         cb err, theArray
@@ -185,6 +187,10 @@ findOne = (args, cb) ->
 find = (args, cb) ->
   {db, collection, obj, oneOrMany, sessionId} = args
   oneOrMany ||= "many"
+  if _.isString obj 
+    _id = obj
+    obj = {}
+    obj._id = collections[db].ObjectID.createFromHexString(_id) 
   obj ||= {}
   getGroups sessionId, db, (err, groups) ->
     obj._readers = {"$in": groups}

@@ -71,11 +71,12 @@ $ ->
           eq band._writers, id, "only I can write"
           login "hector", "passw0rd", (err, user) ->
             band.origin = "chile"
-            save "bands", band, (err, band) ->
+            save "bands", band, (err, _band) ->
               eq not _.isNull(err), true, "error should be something"
-              remove "bands", band.id, (err, band) ->
-                eq not _.isNull(err), true, "cant remove band"
-                cb()
+              remove "bands", band._id, (err) ->
+                find "bands", band._id, (err, _band) ->
+                  eq _band._id, band.id, "removing doesn't error but you can't remove w/o permissions"
+                  cb()
     ], (err, results) ->
       d err
 

@@ -94,11 +94,13 @@
                 eq(band._writers, id, "only I can write");
                 return login("hector", "passw0rd", function(err, user) {
                   band.origin = "chile";
-                  return save("bands", band, function(err, band) {
+                  return save("bands", band, function(err, _band) {
                     eq(!_.isNull(err), true, "error should be something");
-                    return remove("bands", band.id, function(err, band) {
-                      eq(!_.isNull(err), true, "cant remove band");
-                      return cb();
+                    return remove("bands", band._id, function(err) {
+                      return find("bands", band._id, function(err, _band) {
+                        eq(_band._id, band.id, "removing doesn't error but you can't remove w/o permissions");
+                        return cb();
+                      });
                     });
                   });
                 });
