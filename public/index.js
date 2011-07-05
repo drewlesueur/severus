@@ -97,6 +97,7 @@
                   return save("bands", band, function(err, _band) {
                     eq(!_.isNull(err), true, "error should be something");
                     return remove("bands", band._id, function(err) {
+                      eq(!_.isNull(err), true, "should be error for remove");
                       return find("bands", band._id, function(err, _band) {
                         eq(_band._id, band.id, "removing doesn't error but you can't remove w/o permissions");
                         return cb();

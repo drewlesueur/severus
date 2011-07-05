@@ -74,6 +74,7 @@ $ ->
             save "bands", band, (err, _band) ->
               eq not _.isNull(err), true, "error should be something"
               remove "bands", band._id, (err) ->
+                eq not _.isNull(err), true, "should be error for remove"
                 find "bands", band._id, (err, _band) ->
                   eq _band._id, band.id, "removing doesn't error but you can't remove w/o permissions"
                   cb()

@@ -161,23 +161,43 @@ wait 5000, ->
     log results 
 
 
+doIgotWhatItTakes = (acceptable, whatIGot) ->
+  found = false
+  for item in whatIGot
+    if item in acceptable
+      found = true
+      return true  
+  return false
 
 
 remove = (args, cb) ->
   log "removing"
   {db, collection, obj, user, sessionId} = args
+  single = false
   if _.isString obj 
+    single = true
     _id = obj
     obj = {}
     obj._id = collections[db].ObjectID.createFromHexString(_id) 
   obj ||= {}
   getGroups sessionId, db, (err, groups) ->
-    obj._writers = {"$in": groups}
     getCollection db, collection, (err, _collection, extra) ->
+      doRemoving = () ->
+        obj._writers = {"$in": groups}
+        _collection.remove obj, (err, ret) ->
+          cb err, ret
       if err then return cb err
         # obj is now the id
-      _collection.remove obj, (err, theArray) ->
-        cb err, theArray
+      if single
+        log "the single obj is"
+        log obj
+        _collection.findOne obj, (err, obj) ->
+          if not doIgotWhatItTakes obj.writers, groups
+            return cb "You don't have permission to delete that record"
+          else
+            doRemoving()
+      else
+        doRemoving()
  
 
 findOne = (args, cb) ->
@@ -196,9 +216,6 @@ find = (args, cb) ->
     obj._readers = {"$in": groups}
     getCollection db, collection, (err, _collection, extra) ->
       if err then return cb err
-      if _.isString obj
-        obj = collections[db].ObjectID.createFromHexString(obj) 
-        # obj is now the id
       if oneOrMany == "many"
         _collection.find(obj).toArray (err, theArray) ->
           cb err, theArray
@@ -228,6 +245,8 @@ getGroups =  (sessionId, db, cb) ->
           cb err, [user._id, groups.groups...]
   else
     cb null, ['public']
+
+  
   
 save = (args, cb) ->
   {db, collection, obj, sessionId} = args
@@ -266,13 +285,9 @@ save = (args, cb) ->
       log "the results are"
       log results
     [writers, groups] = results
-    found = false
-    for groupId in groups
-      if groupId in writers
-        found = true
-        doTheSaving()  
-        break
-    if not found
+    if doIgotWhatItTakes writers, groups
+      doTheSaving() 
+    else
       cb
         message: "no permissions to save"
         groups: groups

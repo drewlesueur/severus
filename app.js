@@ -1,5 +1,5 @@
 (function() {
-  var app, authenticateUser, bind, clearTests, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaderWriterMaker, getReaders, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, removeCollection, removeCollectionMaker, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
+  var app, authenticateUser, bind, clearTests, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, doIgotWhatItTakes, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaderWriterMaker, getReaders, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, removeCollection, removeCollectionMaker, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
   var __slice = Array.prototype.slice, __indexOf = Array.prototype.indexOf || function(item) {
     for (var i = 0, l = this.length; i < l; i++) {
       if (this[i] === item) return i;
@@ -204,27 +204,57 @@
       return log(results);
     });
   });
+  doIgotWhatItTakes = function(acceptable, whatIGot) {
+    var found, item, _i, _len;
+    found = false;
+    for (_i = 0, _len = whatIGot.length; _i < _len; _i++) {
+      item = whatIGot[_i];
+      if (__indexOf.call(acceptable, item) >= 0) {
+        found = true;
+        return true;
+      }
+    }
+    return false;
+  };
   remove = function(args, cb) {
-    var collection, db, obj, sessionId, user, _id;
+    var collection, db, obj, sessionId, single, user, _id;
     log("removing");
     db = args.db, collection = args.collection, obj = args.obj, user = args.user, sessionId = args.sessionId;
+    single = false;
     if (_.isString(obj)) {
+      single = true;
       _id = obj;
       obj = {};
       obj._id = collections[db].ObjectID.createFromHexString(_id);
     }
     obj || (obj = {});
     return getGroups(sessionId, db, function(err, groups) {
-      obj._writers = {
-        "$in": groups
-      };
       return getCollection(db, collection, function(err, _collection, extra) {
+        var doRemoving;
+        doRemoving = function() {
+          obj._writers = {
+            "$in": groups
+          };
+          return _collection.remove(obj, function(err, ret) {
+            return cb(err, ret);
+          });
+        };
         if (err) {
           return cb(err);
         }
-        return _collection.remove(obj, function(err, theArray) {
-          return cb(err, theArray);
-        });
+        if (single) {
+          log("the single obj is");
+          log(obj);
+          return _collection.findOne(obj, function(err, obj) {
+            if (!doIgotWhatItTakes(obj.writers, groups)) {
+              return cb("You don't have permission to delete that record");
+            } else {
+              return doRemoving();
+            }
+          });
+        } else {
+          return doRemoving();
+        }
       });
     });
   };
@@ -249,9 +279,6 @@
       return getCollection(db, collection, function(err, _collection, extra) {
         if (err) {
           return cb(err);
-        }
-        if (_.isString(obj)) {
-          obj = collections[db].ObjectID.createFromHexString(obj);
         }
         if (oneOrMany === "many") {
           return _collection.find(obj).toArray(function(err, theArray) {
@@ -346,22 +373,15 @@
         return getGroups(sessionId, db, cb);
       }
     ], function(err, results) {
-      var found, groupId, writers, _i, _len;
+      var writers;
       if (debug) {
         log("the results are");
         log(results);
       }
       writers = results[0], groups = results[1];
-      found = false;
-      for (_i = 0, _len = groups.length; _i < _len; _i++) {
-        groupId = groups[_i];
-        if (__indexOf.call(writers, groupId) >= 0) {
-          found = true;
-          doTheSaving();
-          break;
-        }
-      }
-      if (!found) {
+      if (doIgotWhatItTakes(writers, groups)) {
+        return doTheSaving();
+      } else {
         return cb({
           message: "no permissions to save",
           groups: groups,
