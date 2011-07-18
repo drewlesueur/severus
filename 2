@@ -173,18 +173,17 @@ doIgotWhatItTakes = (acceptable, whatIGot) ->
 
 
 remove = (args, cb) ->
-  #TODO: write test for removing being the first thing done
   log "removing"
   {db, collection, obj, user, sessionId} = args
+  single = false
+  if _.isString obj 
+    single = true
+    _id = obj
+    obj = {}
+    obj._id = collections[db].ObjectID.createFromHexString(_id) 
+  obj ||= {}
   getGroups sessionId, db, (err, groups) ->
     getCollection db, collection, (err, _collection, extra) ->
-      single = false
-      if _.isString obj 
-        single = true
-        _id = obj
-        obj = {}
-        obj._id = collections[db].ObjectID.createFromHexString(_id) 
-      obj ||= {}
       doRemoving = () ->
         obj._writers = {"$in": groups}
         _collection.remove obj, (err, ret) ->
@@ -195,14 +194,8 @@ remove = (args, cb) ->
         log "the single obj is"
         log obj
         _collection.findOne obj, (err, obj) ->
-          #TODO: test removingone
-          log "the obj is"
-          log obj
           log "the groups are"
-          log groups
-          log "the writers are"
-          log obj._writers
-          if not doIgotWhatItTakes obj._writers, groups
+          if not doIgotWhatItTakes obj.writers, groups
             return cb "You don't have permission to delete that record"
           else
             doRemoving()

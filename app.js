@@ -25,6 +25,7 @@
   };
   enableCORS = function(req, res, next) {
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     return next();
   };
   app = module.exports = express.createServer();
@@ -217,20 +218,20 @@
     return false;
   };
   remove = function(args, cb) {
-    var collection, db, obj, sessionId, single, user, _id;
+    var collection, db, obj, sessionId, user;
     log("removing");
     db = args.db, collection = args.collection, obj = args.obj, user = args.user, sessionId = args.sessionId;
-    single = false;
-    if (_.isString(obj)) {
-      single = true;
-      _id = obj;
-      obj = {};
-      obj._id = collections[db].ObjectID.createFromHexString(_id);
-    }
-    obj || (obj = {});
     return getGroups(sessionId, db, function(err, groups) {
       return getCollection(db, collection, function(err, _collection, extra) {
-        var doRemoving;
+        var doRemoving, single, _id;
+        single = false;
+        if (_.isString(obj)) {
+          single = true;
+          _id = obj;
+          obj = {};
+          obj._id = collections[db].ObjectID.createFromHexString(_id);
+        }
+        obj || (obj = {});
         doRemoving = function() {
           obj._writers = {
             "$in": groups
@@ -246,7 +247,13 @@
           log("the single obj is");
           log(obj);
           return _collection.findOne(obj, function(err, obj) {
-            if (!doIgotWhatItTakes(obj.writers, groups)) {
+            log("the obj is");
+            log(obj);
+            log("the groups are");
+            log(groups);
+            log("the writers are");
+            log(obj._writers);
+            if (!doIgotWhatItTakes(obj._writers, groups)) {
               return cb("You don't have permission to delete that record");
             } else {
               return doRemoving();
@@ -326,9 +333,9 @@
     }
   };
   save = function(args, cb) {
-    var collection, db, debug, doTheSaving, groups, isNew, obj, sessionId;
+    var collection, db, debug, doTheSaving, groups, isNew, obj, sessionId, _ref;
     db = args.db, collection = args.collection, obj = args.obj, sessionId = args.sessionId;
-    if (obj.name.match(/Javiera/i)) {
+    if ((_ref = obj.name) != null ? _ref.match(/Javiera/i) : void 0) {
       debug = true;
       log(obj);
     }
