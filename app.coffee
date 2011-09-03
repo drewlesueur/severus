@@ -65,7 +65,8 @@ getCollection = (args...,  cb=->) ->
   # the riff raff here is because
   # db.open's callback only gets called once
   # also because only one can be 'being opened' at a time?
-  mayHaveDb = -> db of collections
+  # TODO: fix the false hack
+  mayHaveDb = -> false #db of collections
   gettingDb = -> collections[db].state == "getting"
   haveCollection = -> collection of collections[db].cns
   cachedCollection = -> collections[db].cns[collection]
@@ -105,6 +106,7 @@ getCollection = (args...,  cb=->) ->
     else
       if debug then log "you don't have collection #{collection}, start getting it"
       startGettingCollection()
+
   if mayHaveDb()
     if gettingDb()
       if debug then log "you are getting db #{db}"
@@ -122,19 +124,16 @@ getCollection = (args...,  cb=->) ->
 
 getCollection "office_test", "listings", (err, c) ->
   c.find().toArray (err, _docs) ->
-    #console.log _docs
     log """
     separator
     """
 getCollection "office_test", "listings", (err, c) ->
   c.find().toArray (err, _docs) ->
-    #console.log _docs
     log """
     separator
     """
 getCollection "office_test", "listings_groups", (err, c) ->
   c.find().toArray (err, _docs) ->
-    #console.log _docs
     log """
     separator groups
     """
@@ -145,7 +144,6 @@ getCollection "severus_the_tl", "user_groups", (err, users) ->
 
 getCollection "office_test", "listings_groups", (err, c) ->
   c.find().toArray (err, _docs) ->
-    #console.log _docs
     log """
     separator groups again
     """
@@ -192,16 +190,8 @@ remove = (args, cb) ->
       if err then return cb err
         # obj is now the id
       if single
-        log "the single obj is"
-        log obj
         _collection.findOne obj, (err, obj) ->
           #TODO: test removingone
-          log "the obj is"
-          log obj
-          log "the groups are"
-          log groups
-          log "the writers are"
-          log obj._writers
           if not doIgotWhatItTakes obj._writers, groups
             return cb "You don't have permission to delete that record"
           else
@@ -227,6 +217,7 @@ find = (args, cb) ->
     getCollection db, collection, (err, _collection, extra) ->
       if err then return cb err
       if oneOrMany == "many"
+
         _collection.find(obj).toArray (err, theArray) ->
           cb err, theArray
       else
@@ -386,6 +377,46 @@ whoami = (sessionId, db, cb) ->
           cb err, user
 
   
+wait 1000, ->
+  get1 = (cb) ->
+    find db: "test_db", collection: "tests", obj: {name: "drew"}, (err, ret) ->
+      console.log "find1 collection"
+      cb err, ret
+  get2 = (cb) ->
+    find db: "test_db", collection: "tests2", obj: {name: "drew"}, (err, ret) ->
+      console.log "find2 collection"
+      cb err, ret
+  get3 = (cb) ->
+    find db: "test_db", collection: "tests", obj: {name: "drew"}, (err, ret) ->
+      console.log "find3 collection"
+      cb err, ret 
+  series [get1, get2, get3], (err, results) ->
+    console.log "ALL DONE with switching collections"
+    if err
+      console.log "ERROR!!!! with switching collections"
+      console.log err
+    #log results 
+
+#TODO error if both wait 1000 
+wait 1010, ->
+  get1 = (cb) ->
+    find db: "test_db", collection: "tests", obj: {name: "drew"}, (err, ret) ->
+      console.log "find1 db"
+      cb err, ret
+  get2 = (cb) ->
+    find db: "test_db_2", collection: "tests", obj: {name: "drew"}, (err, ret) ->
+      console.log "find2 db"
+      cb err, ret
+  get3 = (cb) ->
+    find db: "test_db", collection: "tests", obj: {name: "Javiera"}, (err, ret) ->
+      console.log "find3 db"
+      cb err, ret 
+  series [get1, get2, get3], (err, results) ->
+    console.log "ALL DONE with switching dbs"
+    if err
+      console.log "ERROR!!!! with switching dbs"
+      console.log error
+    console.log "all done"
 
 
 app.get "/:db/:collection/:id", (req, res) ->
