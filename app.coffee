@@ -20,7 +20,7 @@ drewsSignIn = (req, res, next) ->
 
 enableCORS = (req, res, next) ->
   res.setHeader "Access-Control-Allow-Origin", "*"
-  res.setHeader "Access-Control-Allow-Headers", "Content-Type"
+  res.setHeader "Access-Control-Allow-Headers", "Content-Type, X-Requested-With"
   next()
 
 

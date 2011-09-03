@@ -4,3 +4,4 @@ config.coffee
 config.js
 *.swp
 *.sw0
+*.sw*
