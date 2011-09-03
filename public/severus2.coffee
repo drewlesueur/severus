@@ -1,4 +1,4 @@
-define "severus", () -> ->
+define "severus2", () -> ->
   _ = require "underscore"
   drews = require("drews-mixins")
   nimble = require "nimble"
