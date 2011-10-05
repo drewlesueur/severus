@@ -2,7 +2,7 @@
 config = require './config.coffee'
 _ = require "underscore"
 drews = require("drews-mixins")
-mongo = require("mongodb")
+mongo = require("node-mongodb-native")
 nimble = require "nimble"
 mongoHost = config.db.host
 mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT
@@ -21,6 +21,7 @@ drewsSignIn = (req, res, next) ->
 enableCORS = (req, res, next) ->
   res.setHeader "Access-Control-Allow-Origin", "*"
   res.setHeader "Access-Control-Allow-Headers", "Content-Type, X-Requested-With"
+  res.setHeader "Cache-Control", "no-cache"
   next()
 
 
@@ -56,15 +57,30 @@ pg = (p, f) ->
 
 
 count = 0
-mongoServer = new mongo.Server mongoHost, mongoPort, {}
+mongoServer = null
+
+getServer = () ->
+  mongoServer = new mongo.Server mongoHost, mongoPort, {auto_reconnect: true}
+getServer()
+closeServer = (callback) -> 
+  if mongoServer and mongoServer.close
+    console.log "trying to close"
+    mongoServer.close #callback
+
 collections = {}
 db_is_being_opened = false
 getCollection = (args...,  cb=->) ->
+
+  #TODO: maybe this works, nut fix
+  #closeServer()
+  #getServer()
+
   [db, collection, debug] = args
   
   # the riff raff here is because
   # db.open's callback only gets called once
   # also because only one can be 'being opened' at a time?
+  #----
   # TODO: fix the false hack
   mayHaveDb = -> false #db of collections
   gettingDb = -> collections[db].state == "getting"
@@ -234,7 +250,7 @@ getReaderWriterMaker = (value) ->
           _id = collections[db].ObjectID.createFromHexString(_id) 
         _collection.findOne _id, (err, obj) ->
           #TODO: only get the writers here
-          cb err, obj[value]
+          cb err, obj?[value]
 #TODO: maybe a dependencies table for dependent deletes
 getWriters = getReaderWriterMaker "_writers"
 getReaders = getReaderWriterMaker "_readers"
@@ -453,7 +469,10 @@ app.get "/drew", (req, res) ->
   res.send "aguzate, hazte valer"
 
 
-
+pg "/restart", (req, res) ->
+  closeServer()
+  getServer()
+  res.send("tried to restart the server. it might work now #{drews.time()}")
 
 pg "/p", (req, res) ->
   req.session.poo = "gotta"
