@@ -1,11 +1,23 @@
 (function() {
+  var definir;
   var __slice = Array.prototype.slice;
+  if (typeof module !== "undefined" && module !== null ? module.exports : void 0) {
+    definir = function() {
+      var args, ret, _i;
+      args = 2 <= arguments.length ? __slice.call(arguments, 0, _i = arguments.length - 1) : (_i = 0, []), ret = arguments[_i++];
+      return module.exports = ret();
+    };
+    define = difinir;
+  }
   define("severus2", function() {
-    return function() {
-      var credentials, drews, extend, find, log, login, nimble, remove, save, self, serv, server, serverCallMaker, _;
+    var ret;
+    ret = function() {
+      var credentials, drews, extend, find, log, login, nimble, remove, save, self, serv, server, serverCallMaker, setDb, _;
       _ = require("underscore");
       drews = require("drews-mixins");
+      console.log(drews);
       nimble = require("nimble");
+      console.log(drews);
       server = drews.jsonRpcMaker("http://severus.drewl.us/rpc/");
       extend = _.extend, log = _.log;
       self = {};
@@ -43,14 +55,20 @@
           return cb(null, user);
         });
       };
+      setDb = function(db) {
+        return self.db = db;
+      };
       return _.extend(self, {
         save: save,
         find: find,
         remove: remove,
         login: login,
         serv: serv,
-        server: server
+        server: server,
+        setDb: setDb
       });
     };
+    ret.init = ret;
+    return ret;
   });
 }).call(this);

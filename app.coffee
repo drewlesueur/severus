@@ -8,6 +8,10 @@ mongoHost = config.db.host
 mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT
 crypto = require "crypto"
 
+process.on "uncaughtException", (err) ->
+  console.log "there whas a hitch, but we're still up"
+  console.log err
+
 {wait, trigger, bind, once, log} = _
 {series, parallel} = nimble
 
@@ -470,9 +474,10 @@ app.get "/drew", (req, res) ->
 
 
 pg "/restart", (req, res) ->
-  closeServer()
-  getServer()
-  res.send("tried to restart the server. it might work now #{drews.time()}")
+  #closeServer()
+  #getServer()
+  #res.send("tried to restart the server. it might work now #{drews.time()}")
+  _.wait 500, -> throw new Error("eject! supervisor should restart this")
 
 pg "/p", (req, res) ->
   req.session.poo = "gotta"
