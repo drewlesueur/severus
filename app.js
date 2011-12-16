@@ -1,34 +1,50 @@
 (function() {
-  var app, authenticateUser, bind, clearTests, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, doIgotWhatItTakes, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaderWriterMaker, getReaders, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, removeCollection, removeCollectionMaker, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
-  var __slice = Array.prototype.slice, __indexOf = Array.prototype.indexOf || function(item) {
-    for (var i = 0, l = this.length; i < l; i++) {
-      if (this[i] === item) return i;
-    }
-    return -1;
-  };
-  config = require('./config.coffee');
+  var app, authenticateUser, bind, clearTests, closeServer, collections, config, count, createSession, createUser, crypto, db_is_being_opened, deleteSession, doIgotWhatItTakes, drews, drewsSignIn, enableCORS, errorMaker, express, find, findOne, getCollection, getGroups, getReaderWriterMaker, getReaders, getServer, getWriters, log, login, md5, mongo, mongoHost, mongoPort, mongoServer, nimble, once, parallel, pg, remove, removeCollection, removeCollectionMaker, rpcMethods, save, series, test, trigger, userExists, wait, whoami, _;
+  var __slice = Array.prototype.slice, __hasProp = Object.prototype.hasOwnProperty, __indexOf = Array.prototype.indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (__hasProp.call(this, i) && this[i] === item) return i; } return -1; };
+
+  config = require('./config.js');
+
   _ = require("underscore");
+
   drews = require("drews-mixins");
-  mongo = require("mongodb");
+
+  mongo = require("node-mongodb-native");
+
   nimble = require("nimble");
+
   mongoHost = config.db.host;
+
   mongoPort = config.db.port || mongo.Connection.DEFAULT_PORT;
+
   crypto = require("crypto");
+
+  process.on("uncaughtException", function(err) {
+    console.log("there whas a hitch, but we're still up");
+    return console.log(err);
+  });
+
   wait = _.wait, trigger = _.trigger, bind = _.bind, once = _.once, log = _.log;
+
   series = nimble.series, parallel = nimble.parallel;
+
   express = require('express');
+
   drewsSignIn = function(req, res, next) {
     req.isSignedIn = function() {
       return req.session.email !== null;
     };
     return next();
   };
+
   enableCORS = function(req, res, next) {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+    res.setHeader("Cache-Control", "no-cache");
     return next();
   };
+
   app = module.exports = express.createServer();
+
   app.configure(function() {
     app.use(enableCORS);
     app.use(express.bodyParser());
@@ -41,32 +57,53 @@
     app.use(express.static(__dirname + '/public'));
     return app.use(drewsSignIn);
   });
+
   app.configure('development', function() {
     return app.use(express.errorHandler({
       dumpExceptions: true,
       showStack: true
     }));
   });
+
   app.configure('production', function() {
     return app.use(express.errorHandler());
   });
+
   pg = function(p, f) {
     app.post(p, f);
     return app.get(p, f);
   };
+
   count = 0;
-  mongoServer = new mongo.Server(mongoHost, mongoPort, {});
+
+  mongoServer = null;
+
+  getServer = function() {
+    return mongoServer = new mongo.Server(mongoHost, mongoPort, {
+      auto_reconnect: true
+    });
+  };
+
+  getServer();
+
+  closeServer = function(callback) {
+    if (mongoServer && mongoServer.close) {
+      console.log("trying to close");
+      return mongoServer.close;
+    }
+  };
+
   collections = {};
+
   db_is_being_opened = false;
+
   getCollection = function() {
     var args, cacheCollection, cachedCollection, cb, collection, db, debug, getDb, gettingDb, giveCollection, haveCollection, mayHaveDb, startGettingCollection, startGettingDb, _i;
     args = 2 <= arguments.length ? __slice.call(arguments, 0, _i = arguments.length - 1) : (_i = 0, []), cb = arguments[_i++];
-    if (cb == null) {
-      cb = function() {};
-    }
+    if (cb == null) cb = function() {};
     db = args[0], collection = args[1], debug = args[2];
     mayHaveDb = function() {
-      return db in collections;
+      return false;
     };
     gettingDb = function() {
       return collections[db].state === "getting";
@@ -85,9 +122,7 @@
     };
     startGettingDb = function() {
       var dbBig;
-      if (debug) {
-        log("starting to get db " + db);
-      }
+      if (debug) log("starting to get db " + db);
       collections[db] || (collections[db] = {});
       collections[db].state = "getting";
       if (db_is_being_opened) {
@@ -112,13 +147,9 @@
       });
     };
     startGettingCollection = function() {
-      if (debug) {
-        log("starting to get collection " + collection);
-      }
+      if (debug) log("starting to get collection " + collection);
       return getDb().collection(collection, function(err, _collection) {
-        if (debug) {
-          log("got collection " + collection);
-        }
+        if (debug) log("got collection " + collection);
         cacheCollection(_collection);
         return cb(err, _collection, collections[db]);
       });
@@ -126,9 +157,7 @@
     count++;
     giveCollection = function() {
       if (haveCollection()) {
-        if (debug) {
-          log("giving colleciton " + collection);
-        }
+        if (debug) log("giving colleciton " + collection);
         return cb(null, cachedCollection(), collections[db]);
       } else {
         if (debug) {
@@ -139,54 +168,53 @@
     };
     if (mayHaveDb()) {
       if (gettingDb()) {
-        if (debug) {
-          log("you are getting db " + db);
-        }
+        if (debug) log("you are getting db " + db);
         return once(collections[db], "gotten", function() {
-          if (debug) {
-            log("got db now start with colleciton " + collection);
-          }
+          if (debug) log("got db now start with colleciton " + collection);
           return giveCollection();
         });
       } else {
-        if (debug) {
-          log("you have db " + db + ". now get and give the collection");
-        }
+        if (debug) log("you have db " + db + ". now get and give the collection");
         return giveCollection();
       }
     } else {
-      if (debug) {
-        log("you don't have db, " + db + ", start getting it");
-      }
+      if (debug) log("you don't have db, " + db + ", start getting it");
       return startGettingDb();
     }
   };
+
   getCollection("office_test", "listings", function(err, c) {
     return c.find().toArray(function(err, _docs) {
       return log("separator");
     });
   });
+
   getCollection("office_test", "listings", function(err, c) {
     return c.find().toArray(function(err, _docs) {
       return log("separator");
     });
   });
+
   getCollection("office_test", "listings_groups", function(err, c) {
     return c.find().toArray(function(err, _docs) {
       return log("separator groups");
     });
   });
+
   getCollection("severus_the_tl", "users", function(err, users) {
     return log("Should only be here once");
   });
+
   getCollection("severus_the_tl", "user_groups", function(err, users) {
     return log("this once too");
   });
+
   getCollection("office_test", "listings_groups", function(err, c) {
     return c.find().toArray(function(err, _docs) {
       return log("separator groups again");
     });
   });
+
   wait(5000, function() {
     var get1, get2;
     get1 = function(cb) {
@@ -205,6 +233,7 @@
       return log(results);
     });
   });
+
   doIgotWhatItTakes = function(acceptable, whatIGot) {
     var found, item, _i, _len;
     found = false;
@@ -217,6 +246,7 @@
     }
     return false;
   };
+
   remove = function(args, cb) {
     var collection, db, obj, sessionId, user;
     log("removing");
@@ -240,19 +270,9 @@
             return cb(err, ret);
           });
         };
-        if (err) {
-          return cb(err);
-        }
+        if (err) return cb(err);
         if (single) {
-          log("the single obj is");
-          log(obj);
           return _collection.findOne(obj, function(err, obj) {
-            log("the obj is");
-            log(obj);
-            log("the groups are");
-            log(groups);
-            log("the writers are");
-            log(obj._writers);
             if (!doIgotWhatItTakes(obj._writers, groups)) {
               return cb("You don't have permission to delete that record");
             } else {
@@ -265,10 +285,12 @@
       });
     });
   };
+
   findOne = function(args, cb) {
     args.oneOrMany = "one";
     return find(args, cb);
   };
+
   find = function(args, cb) {
     var collection, db, obj, oneOrMany, sessionId, _id;
     db = args.db, collection = args.collection, obj = args.obj, oneOrMany = args.oneOrMany, sessionId = args.sessionId;
@@ -284,9 +306,7 @@
         "$in": groups
       };
       return getCollection(db, collection, function(err, _collection, extra) {
-        if (err) {
-          return cb(err);
-        }
+        if (err) return cb(err);
         if (oneOrMany === "many") {
           return _collection.find(obj).toArray(function(err, theArray) {
             return cb(err, theArray);
@@ -299,6 +319,7 @@
       });
     });
   };
+
   getReaderWriterMaker = function(value) {
     return function(db, collection, _id, cb) {
       if (!_id) {
@@ -309,14 +330,17 @@
             _id = collections[db].ObjectID.createFromHexString(_id);
           }
           return _collection.findOne(_id, function(err, obj) {
-            return cb(err, obj[value]);
+            return cb(err, obj != null ? obj[value] : void 0);
           });
         });
       }
     };
   };
+
   getWriters = getReaderWriterMaker("_writers");
+
   getReaders = getReaderWriterMaker("_readers");
+
   getGroups = function(sessionId, db, cb) {
     if (sessionId) {
       return whoami(sessionId, db, function(err, user) {
@@ -332,6 +356,7 @@
       return cb(null, ['public']);
     }
   };
+
   save = function(args, cb) {
     var collection, db, debug, doTheSaving, groups, isNew, obj, sessionId, _ref;
     db = args.db, collection = args.collection, obj = args.obj, sessionId = args.sessionId;
@@ -347,27 +372,18 @@
     }
     groups = null;
     doTheSaving = function() {
-      if (isNew && sessionId) {
-        if (!("_writers" in obj)) {
-          obj._writers = [groups[0]];
-        }
-      }
-      if (isNew && !sessionId) {
-        if (!("_writers" in obj)) {
-          obj._writers = ["public"];
-        }
-      }
-      if (!("_readers" in obj)) {
-        obj._readers = ["public"];
-      }
+      if (isNew && sessionId) if (!("_writers" in obj)) obj._writers = [groups[0]];
+      if (isNew && !sessionId) if (!("_writers" in obj)) obj._writers = ["public"];
+      if (!("_readers" in obj)) obj._readers = ["public"];
       if (debug) {
         log("doing the saving");
         log(obj);
       }
+      console.log(db);
+      console.log(collection);
+      
       return getCollection(db, collection, function(err, _collection, extra) {
-        if (err) {
-          return cb(err);
-        }
+        if (err) return cb(err);
         return _collection.save(obj, function(err, _obj) {
           return cb(err, _obj);
         });
@@ -397,6 +413,7 @@
       }
     });
   };
+
   userExists = function(db, username, cb) {
     return getCollection(db, "users", function(err, users) {
       return users.findOne({
@@ -410,6 +427,7 @@
       });
     });
   };
+
   createSession = function(db, userId, cb) {
     return getCollection(db, "sessions", function(err, sessions) {
       var sessionId;
@@ -422,6 +440,7 @@
       });
     });
   };
+
   deleteSession = function(db, userId, cb) {
     return getCollection(cb, "sessions", function(err, sessions) {
       return sessions.remove({
@@ -429,6 +448,7 @@
       }, cb);
     });
   };
+
   createUser = function(db, username, password, cb) {
     var saveUser, saveUserGroups;
     saveUser = function(d) {
@@ -457,9 +477,11 @@
       return cb(err, user);
     });
   };
+
   md5 = function(data) {
     return crypto.createHash('md5').update(data).digest("hex");
   };
+
   authenticateUser = function(db, username, password, cb) {
     return getCollection(db, "users", function(err, users) {
       return users.findOne({
@@ -474,6 +496,7 @@
       });
     });
   };
+
   login = function(db, username, password, cb) {
     return userExists(db, username, function(err, user) {
       if (user === false) {
@@ -493,6 +516,7 @@
       }
     });
   };
+
   whoami = function(sessionId, db, cb) {
     return getCollection(db, "sessions", function(err, sessions) {
       return sessions.findOne({
@@ -506,6 +530,102 @@
       });
     });
   };
+
+  wait(1000, function() {
+    var get1, get2, get3;
+    get1 = function(cb) {
+      return find({
+        db: "test_db",
+        collection: "tests",
+        obj: {
+          name: "drew"
+        }
+      }, function(err, ret) {
+        console.log("find1 collection");
+        return cb(err, ret);
+      });
+    };
+    get2 = function(cb) {
+      return find({
+        db: "test_db",
+        collection: "tests2",
+        obj: {
+          name: "drew"
+        }
+      }, function(err, ret) {
+        console.log("find2 collection");
+        return cb(err, ret);
+      });
+    };
+    get3 = function(cb) {
+      return find({
+        db: "test_db",
+        collection: "tests",
+        obj: {
+          name: "drew"
+        }
+      }, function(err, ret) {
+        console.log("find3 collection");
+        return cb(err, ret);
+      });
+    };
+    return series([get1, get2, get3], function(err, results) {
+      console.log("ALL DONE with switching collections");
+      if (err) {
+        console.log("ERROR!!!! with switching collections");
+        return console.log(err);
+      }
+    });
+  });
+
+  wait(1010, function() {
+    var get1, get2, get3;
+    get1 = function(cb) {
+      return find({
+        db: "test_db",
+        collection: "tests",
+        obj: {
+          name: "drew"
+        }
+      }, function(err, ret) {
+        console.log("find1 db");
+        return cb(err, ret);
+      });
+    };
+    get2 = function(cb) {
+      return find({
+        db: "test_db_2",
+        collection: "tests",
+        obj: {
+          name: "drew"
+        }
+      }, function(err, ret) {
+        console.log("find2 db");
+        return cb(err, ret);
+      });
+    };
+    get3 = function(cb) {
+      return find({
+        db: "test_db",
+        collection: "tests",
+        obj: {
+          name: "Javiera"
+        }
+      }, function(err, ret) {
+        console.log("find3 db");
+        return cb(err, ret);
+      });
+    };
+    return series([get1, get2, get3], function(err, results) {
+      console.log("ALL DONE with switching dbs");
+      if (err) {
+        console.log("ERROR!!!! with switching dbs");
+        console.log(error);
+      }
+      return console.log("all done");
+    });
+  });
+
   app.get("/:db/:collection/:id", function(req, res) {
     var collection, db, id, _ref;
     _ref = req.params, db = _ref.db, collection = _ref.collection, id = _ref.id;
@@ -515,6 +635,7 @@
       return res.send(_document);
     });
   });
+
   app.get("/:db/:collection", function(req, res) {
     var collection, db, _ref;
     _ref = req.params, db = _ref.db, collection = _ref.collection;
@@ -522,14 +643,13 @@
       return res.send(_array);
     });
     return getCollection(db, collection, function(err, _collection) {
-      if (err) {
-        return log("error");
-      }
+      if (err) return log("error");
       return _collection.find().toArray(function(err, theArray) {
         return res.send(theArray);
       });
     });
   });
+
   app.post("/:db/:collection", function(req, res) {
     var collection, db, _ref;
     _ref = req.params, db = _ref.db, collection = _ref.collection;
@@ -537,6 +657,7 @@
       return res.send({});
     });
   });
+
   false && app["delete"]("/:db/:collection/:id", function(req, res) {
     var collection, db, id, _ref;
     _ref = req.params, db = _ref.db, collection = _ref.collection, id = _ref.id;
@@ -550,16 +671,26 @@
       });
     });
   });
+
   app.get("/drew", function(req, res) {
     return res.send("aguzate, hazte valer");
   });
+
+  pg("/restart", function(req, res) {
+    return _.wait(500, function() {
+      throw new Error("eject! supervisor should restart this");
+    });
+  });
+
   pg("/p", function(req, res) {
     req.session.poo = "gotta";
     return res.send("that is all");
   });
+
   pg("/whoami", function(req, res) {
     return res.send(req.session);
   });
+
   test = function() {
     var a, b, cb, _i;
     a = arguments[0], b = 3 <= arguments.length ? __slice.call(arguments, 1, _i = arguments.length - 1) : (_i = 1, []), cb = arguments[_i++];
@@ -567,6 +698,7 @@
       yo: "" + a + " yo"
     });
   };
+
   removeCollectionMaker = function(db, collection) {
     return function(cb) {
       return removeCollection(db, collection, function(err) {
@@ -574,6 +706,7 @@
       });
     };
   };
+
   removeCollection = function(db, collection, cb) {
     return getCollection(db, collection, function(err, _coll) {
       return _coll.remove(function(err) {
@@ -581,6 +714,7 @@
       });
     });
   };
+
   clearTests = function(cb) {
     var db;
     db = "severus_drewl_us";
@@ -588,6 +722,7 @@
       return cb(err, "test collecitons cleared");
     });
   };
+
   rpcMethods = {
     login: login,
     save: save,
@@ -598,6 +733,7 @@
     whoami: whoami,
     clearTests: clearTests
   };
+
   errorMaker = function(error) {
     return function() {
       var args, cb, _i;
@@ -605,6 +741,7 @@
       return cb(error, null);
     };
   };
+
   pg("/rpc", function(req, res) {
     var body, fn, id, method, params;
     body = req.body;
@@ -618,9 +755,12 @@
       });
     }]));
   });
+
   exports.app = app;
+
   if (!module.parent) {
     app.listen(config.server.port || 8001);
     console.log("Express server listening on port %d", app.address().port);
   }
+
 }).call(this);

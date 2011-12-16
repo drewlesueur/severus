@@ -1,13 +1,22 @@
 (function() {
   var $, drews, eq, log, nimble, series, severus, _;
+
   $ = require("jquery");
+
   severus = require("severus");
+
   _ = require("underscore");
+
   nimble = require("nimble");
+
   drews = require("drews-mixins");
+
   log = _.log;
+
   eq = drews.assertEqual;
+
   series = nimble.series;
+
   $(function() {
     var band, find, id, login, remove, save, serv, server, tests;
     save = severus.save, find = severus.find, remove = severus.remove, login = severus.login, serv = severus.serv, server = severus.server;
@@ -117,6 +126,7 @@
       return log("" + (drews.getPassCount()) + "/" + (drews.getAssertCount()) + " assertions passed\n" + (drews.getFailedMessages()));
     });
   });
+
   /*
     server "save", "severus_drewl_us", "test"
       name: "Drew"
@@ -128,6 +138,6 @@
       log data
     server "remove", "severus_drewl_us", "test", (err, data) ->
       log data
-  
   */
+
 }).call(this);

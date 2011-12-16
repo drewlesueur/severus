@@ -1,5 +1,6 @@
 (function() {
   var __slice = Array.prototype.slice;
+
   define("severus", function() {
     var credentials, drews, extend, find, log, login, nimble, remove, save, self, serv, server, serverCallMaker, _;
     _ = require("underscore");
@@ -51,4 +52,5 @@
       server: server
     });
   });
+
 }).call(this);

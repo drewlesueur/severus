@@ -1,14 +1,8 @@
-if module?.exports
-  definir = (args..., ret) -> module.exports = ret()
-  `define = difinir`
-
-define "severus2", () -> 
+dModule.define "severus2", () -> 
   ret = ->
-    _ = require "underscore"
-    drews = require("drews-mixins")
-    console.log(drews)
-    nimble = require "nimble"
-    console.log drews
+    _ = dModule.require "underscore"
+    drews = dModule.require("drews-mixins")
+    nimble = dModule.require "nimble"
     server = drews.jsonRpcMaker("http://severus.drewl.us/rpc/")
     {extend, log} = _
     self = {}

@@ -1,5 +1,5 @@
 #TODO: add a special property that only super admin can edit
-config = require './config.coffee'
+config = require './config.js'
 _ = require "underscore"
 drews = require("drews-mixins")
 mongo = require("node-mongodb-native")
